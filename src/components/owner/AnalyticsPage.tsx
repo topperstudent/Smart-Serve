@@ -193,10 +193,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
           </div>
 
           {/* Time Filter Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-inner">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-inner w-full sm:w-auto">
             <button
               onClick={() => setTimeFilter('today')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap text-center ${
                 timeFilter === 'today'
                   ? 'bg-white text-slate-900 font-bold shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -206,7 +206,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
             </button>
             <button
               onClick={() => setTimeFilter('this_month')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap text-center ${
                 timeFilter === 'this_month'
                   ? 'bg-white text-slate-900 font-bold shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -216,7 +216,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
             </button>
             <button
               onClick={() => setTimeFilter('last_365_days')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex-1 sm:flex-none px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap text-center ${
                 timeFilter === 'last_365_days'
                   ? 'bg-white text-slate-900 font-bold shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -329,41 +329,43 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
                 )}
               </div>
 
-              {/* Responsive SVG Bar Chart */}
-              <div className="h-64 w-full flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-slate-200">
-                {analytics.monthsBreakdown.map((m, idx) => {
-                  const heightPercent = maxMonthSales > 0 ? Math.max((m.sales / maxMonthSales) * 100, 4) : 4;
-                  const isCurrentMonth = idx === 11;
-                  return (
-                    <div
-                      key={m.monthKey}
-                      onMouseEnter={() => setHoveredMonth(m)}
-                      onMouseLeave={() => setHoveredMonth(null)}
-                      className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer relative"
-                    >
-                      {/* Bar */}
+              {/* Responsive SVG Bar Chart with Horizontal Scroll Protection */}
+              <div className="overflow-x-auto pb-1 scrollbar-thin -mx-2 px-2">
+                <div className="h-64 min-w-[330px] sm:min-w-0 w-full flex items-end justify-between gap-1.5 sm:gap-2 pt-6 pb-2 px-1 border-b border-slate-200">
+                  {analytics.monthsBreakdown.map((m, idx) => {
+                    const heightPercent = maxMonthSales > 0 ? Math.max((m.sales / maxMonthSales) * 100, 4) : 4;
+                    const isCurrentMonth = idx === 11;
+                    return (
                       <div
-                        style={{ height: `${heightPercent}%` }}
-                        className={`w-full max-w-[28px] rounded-t-lg transition-all duration-200 relative ${
-                          isCurrentMonth
-                            ? 'bg-amber-500 group-hover:bg-amber-600 shadow-xs'
-                            : m.sales > 0
-                            ? 'bg-slate-300 hover:bg-slate-400'
-                            : 'bg-slate-100 hover:bg-slate-200'
-                        }`}
+                        key={m.monthKey}
+                        onMouseEnter={() => setHoveredMonth(m)}
+                        onMouseLeave={() => setHoveredMonth(null)}
+                        className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer relative"
                       >
-                        {/* Tooltip bubble on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow-md pointer-events-none z-10 whitespace-nowrap">
-                          ₹{m.sales}
+                        {/* Bar */}
+                        <div
+                          style={{ height: `${heightPercent}%` }}
+                          className={`w-full max-w-[28px] rounded-t-lg transition-all duration-200 relative ${
+                            isCurrentMonth
+                              ? 'bg-amber-500 group-hover:bg-amber-600 shadow-xs'
+                              : m.sales > 0
+                              ? 'bg-slate-300 hover:bg-slate-400'
+                              : 'bg-slate-100 hover:bg-slate-200'
+                          }`}
+                        >
+                          {/* Tooltip bubble on hover */}
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow-md pointer-events-none z-10 whitespace-nowrap">
+                            ₹{m.sales}
+                          </div>
                         </div>
+                        {/* Month Label */}
+                        <span className="text-[10px] text-slate-500 mt-2 font-medium group-hover:text-amber-700 transition-colors">
+                          {m.label}
+                        </span>
                       </div>
-                      {/* Month Label */}
-                      <span className="text-[10px] text-slate-500 mt-2 font-medium group-hover:text-amber-700 transition-colors">
-                        {m.label}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

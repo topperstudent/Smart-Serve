@@ -107,19 +107,19 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
         {/* Customer Top Bar */}
-        <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs shadow-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
+        <div className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between text-xs shadow-xs gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-xs shadow-xs shrink-0">
               S
             </div>
-            <span className="font-bold text-slate-900">SmartServe Guest Ordering</span>
+            <span className="font-bold text-slate-900 truncate">SmartServe Guest Ordering</span>
           </div>
 
           <button
             onClick={() => setIsCustomerMode(false)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-colors shrink-0 cursor-pointer min-h-[34px]"
           >
-            <span>Staff / Owner Login</span>
+            <span>Staff Login</span>
             <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
           </button>
         </div>

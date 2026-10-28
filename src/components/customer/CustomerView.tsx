@@ -259,7 +259,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             </div>
 
             {/* Table Badge */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div className="px-4 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex flex-col items-center justify-center text-white font-black shadow-2xs">
                   <span className="text-[8px] uppercase tracking-wider leading-none">Table</span>

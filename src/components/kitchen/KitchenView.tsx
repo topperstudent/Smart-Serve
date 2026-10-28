@@ -206,10 +206,10 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ restaurantId, onExitKD
       )}
 
       {/* Filter Tabs & Counters */}
-      <div className="max-w-7xl mx-auto mt-6 flex flex-wrap items-center gap-2 border-b border-slate-200/90 pb-4">
+      <div className="max-w-7xl mx-auto mt-6 flex items-center gap-2 border-b border-slate-200/90 pb-4 overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setFilter('active')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
             filter === 'active'
               ? 'bg-slate-900 text-white shadow-xs font-black'
               : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200'

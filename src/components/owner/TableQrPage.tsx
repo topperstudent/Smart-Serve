@@ -191,17 +191,17 @@ export const TableQrPage: React.FC<TableQrPageProps> = ({
         </div>
 
         {/* Permanent Production URL Notice Banner */}
-        <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-700 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <Globe className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <div>
-              <span className="font-bold text-slate-900">Production QR Endpoint: </span>
-              <code className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono text-[11px] border border-slate-200">
+        <div className="p-3 sm:p-3.5 bg-white border border-slate-200/90 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-700 shadow-2xs overflow-hidden">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            <Globe className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="min-w-0 flex-1">
+              <span className="font-bold text-slate-900 block sm:inline">Production QR Endpoint: </span>
+              <code className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono text-[10px] sm:text-[11px] border border-slate-200 break-all inline-block mt-1 sm:mt-0">
                 {APP_CONFIG.PRODUCTION_BASE_URL}/?restaurant={restaurant.id}&table=[TABLE_ID]
               </code>
             </div>
           </div>
-          <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+          <span className="text-[10px] sm:text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0 self-start sm:self-auto">
             ✓ Direct Vercel Routing
           </span>
         </div>
@@ -300,7 +300,7 @@ export const TableQrPage: React.FC<TableQrPageProps> = ({
                   </div>
 
                   {/* Action Toolbar */}
-                  <div className="p-4 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="p-3 sm:p-4 bg-slate-50/60 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       {/* Copy Link */}
                       <button

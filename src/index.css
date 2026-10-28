@@ -1,12 +1,18 @@
 @import "tailwindcss";
 
 @layer base {
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   body {
     background-color: #f8fafc;
     color: #0f172a;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
   }
 
   /* Custom subtle light scrollbars */

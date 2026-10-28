@@ -12,6 +12,10 @@ import {
   RefreshCw,
   Image as ImageIcon,
   Check,
+  Link2,
+  Globe,
+  Sparkles,
+  FolderUp,
 } from 'lucide-react';
 import { MenuItem, Restaurant } from '../../types';
 import { restaurantService } from '../../services/restaurantService';
@@ -20,6 +24,65 @@ import { storageService } from '../../services/storageService';
 interface MenuPageProps {
   restaurant: Restaurant;
 }
+
+export const POPULAR_FOOD_PRESETS = [
+  {
+    name: 'Paneer Butter Masala',
+    url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=700&auto=format&fit=crop&q=80',
+    emoji: '🍛',
+    category: 'Main Course',
+    isVeg: true,
+  },
+  {
+    name: 'Hyderabadi Dum Biryani',
+    url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=700&auto=format&fit=crop&q=80',
+    emoji: '🍗',
+    category: 'Main Course',
+    isVeg: false,
+  },
+  {
+    name: 'Garlic Butter Naan',
+    url: 'https://images.unsplash.com/photo-1626074353765-517a681e40be?w=700&auto=format&fit=crop&q=80',
+    emoji: '🫓',
+    category: 'Breads',
+    isVeg: true,
+  },
+  {
+    name: 'Crispy Veg Samosa',
+    url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=700&auto=format&fit=crop&q=80',
+    emoji: '🥟',
+    category: 'Starters',
+    isVeg: true,
+  },
+  {
+    name: 'Tandoori Tikka Platter',
+    url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=700&auto=format&fit=crop&q=80',
+    emoji: '🍢',
+    category: 'Starters',
+    isVeg: false,
+  },
+  {
+    name: 'Gulab Jamun (2 Pcs)',
+    url: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=700&auto=format&fit=crop&q=80',
+    emoji: '🍧',
+    category: 'Desserts',
+    isVeg: true,
+  },
+  {
+    name: 'Mango Lassi',
+    url: 'https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=700&auto=format&fit=crop&q=80',
+    emoji: '🥤',
+    category: 'Beverages',
+    isVeg: true,
+  },
+  {
+    name: 'Cold Coffee with Ice Cream',
+    url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=700&auto=format&fit=crop&q=80',
+    emoji: '☕',
+    category: 'Beverages',
+    isVeg: true,
+  },
+];
 
 export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -39,9 +102,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
   const [formIsAvailable, setFormIsAvailable] = useState(true);
   const [formImageUrl, setFormImageUrl] = useState<string>('');
 
-  // Image Upload state
+  // Dual-mode Image state: Link URL vs Device File Upload
+  const [imageInputMode, setImageInputMode] = useState<'url' | 'upload'>('url');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [showGoogleGuide, setShowGoogleGuide] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
@@ -90,6 +156,9 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
     setFormImageUrl('');
     setImageFile(null);
     setImagePreview(null);
+    setImageInputMode('url');
+    setImageLoadError(false);
+    setShowGoogleGuide(false);
     setUploadNotice(null);
     setFormError(null);
     setUploadProgress(0);
@@ -114,6 +183,9 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
     setFormImageUrl(item.imageUrl || '');
     setImagePreview(item.imageUrl || null);
     setImageFile(null);
+    setImageInputMode('url');
+    setImageLoadError(false);
+    setShowGoogleGuide(false);
     setUploadNotice(null);
     setFormError(null);
     setUploadProgress(0);
@@ -298,12 +370,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
           </div>
 
           {/* Category Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
             {allCategories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
                   selectedCategory === cat
                     ? 'bg-amber-500 text-white font-bold shadow-xs'
                     : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -479,50 +551,234 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
             )}
 
             <form onSubmit={handleSaveItem} className="space-y-4">
-              {/* Photo Upload Zone */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Food Photo (From your Device):
-                </label>
-                <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                  {/* Image Preview Box */}
-                  <div className="w-24 h-24 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs">
-                    {imagePreview ? (
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-8 h-8 text-slate-300" />
-                    )}
-                    {isUploadingImage && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                        <RefreshCw className="w-5 h-5 text-amber-600 animate-spin" />
+              {/* Photo Selector Zone: Dual Mode (Link URL or File Upload) */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Food Photo *
+                  </label>
+                  {/* Mode Selector Tabs */}
+                  <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('url')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                        imageInputMode === 'url'
+                          ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      <Link2 className="w-3 h-3 text-amber-600" />
+                      <span>Paste Image URL</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('upload')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                        imageInputMode === 'upload'
+                          ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      <FolderUp className="w-3 h-3 text-amber-600" />
+                      <span>Upload from Device</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  {/* Live Preview & Status row */}
+                  <div className="flex items-start gap-3.5">
+                    {/* Thumbnail Box */}
+                    <div className="w-24 h-24 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs">
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt="Dish preview"
+                          className="w-full h-full object-cover"
+                          onError={() => setImageLoadError(true)}
+                          onLoad={() => setImageLoadError(false)}
+                        />
+                      ) : (
+                        <div className="text-center p-2 text-slate-300">
+                          <ImageIcon className="w-7 h-7 mx-auto mb-1" />
+                          <span className="text-[9px] font-bold block text-slate-400">No Image</span>
+                        </div>
+                      )}
+                      {isUploadingImage && (
+                        <div className="absolute inset-0 bg-white/85 flex items-center justify-center">
+                          <RefreshCw className="w-5 h-5 text-amber-600 animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Preview details and actions */}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">
+                          {imagePreview ? 'Selected Dish Image' : 'Add Food Photo'}
+                        </span>
+                        {imagePreview && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormImageUrl('');
+                              setImagePreview(null);
+                              setImageFile(null);
+                              setImageLoadError(false);
+                            }}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
-                    )}
+
+                      {imageLoadError && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-900 leading-snug">
+                          ⚠️ <b>Image preview failed.</b> Please make sure you copied a direct image link (ending in .jpg, .png, .webp or from a supported web host).
+                        </div>
+                      )}
+
+                      {!imageLoadError && imagePreview && (
+                        <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Image ready for menu display!</span>
+                        </p>
+                      )}
+
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        {imageInputMode === 'url'
+                          ? 'Paste any image link from Google Images, Pinterest, or your restaurant website.'
+                          : 'Select a photo file from your phone, laptop, or camera.'}
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Upload Controls */}
-                  <div className="flex-1 space-y-2">
-                    <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl cursor-pointer border border-slate-200 transition-colors shadow-2xs">
-                      <UploadCloud className="w-4 h-4 text-amber-600" />
-                      <span>Choose Photo from Device</span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                    </label>
-                    <p className="text-[11px] text-slate-500">
-                      Supports JPG, PNG, WebP up to 5MB. Optimizes automatically for high-res mobile displays.
-                    </p>
-                    {isUploadingImage && (
-                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-amber-500 h-full transition-all duration-300"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
+                  {/* Mode 1: URL Input Mode */}
+                  {imageInputMode === 'url' && (
+                    <div className="space-y-2.5 pt-1 border-t border-slate-200/80">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Paste Image URL (from Google / Web):
+                        </label>
+                        <div className="relative">
+                          <Link2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="url"
+                            value={formImageUrl}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormImageUrl(val);
+                              setImagePreview(val.trim() || null);
+                              setImageLoadError(false);
+                            }}
+                            placeholder="https://... (copy and paste image address here)"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-16 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs"
+                          />
+                          {formImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormImageUrl('');
+                                setImagePreview(null);
+                                setImageLoadError(false);
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 rounded-md"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+
+                      {/* Google Image Search helper accordion */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setShowGoogleGuide(!showGoogleGuide)}
+                          className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Globe className="w-3 h-3 text-amber-600" />
+                          <span>{showGoogleGuide ? 'Hide' : 'How to copy an image URL from Google Images?'}</span>
+                        </button>
+
+                        {showGoogleGuide && (
+                          <div className="mt-1.5 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-[10px] text-amber-950 space-y-1 leading-relaxed">
+                            <p className="font-bold">Simple 4-Step Instructions:</p>
+                            <ol className="list-decimal pl-4 space-y-0.5">
+                              <li>Search for your dish on <b>Google Images</b> (e.g. <i>"Paneer Butter Masala"</i>).</li>
+                              <li>Click on the image to open its preview.</li>
+                              <li><b>Right-click</b> on the image (or <b>tap and hold</b> on phone/tablet).</li>
+                              <li>Select <b>"Copy image address"</b> or <b>"Copy image link"</b>.</li>
+                              <li>Paste that link into the box above!</li>
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick 1-Click Popular Food Presets */}
+                      <div className="pt-1">
+                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          <span>Or Pick a Popular Food Photo (1-Click):</span>
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                          {POPULAR_FOOD_PRESETS.map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                setFormImageUrl(preset.url);
+                                setImagePreview(preset.url);
+                                setImageLoadError(false);
+                                if (!formName.trim()) {
+                                  setFormName(preset.name);
+                                  setFormCategory(preset.category);
+                                  setFormIsVeg(preset.isVeg);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                                formImageUrl === preset.url
+                                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:border-amber-400 hover:bg-amber-50'
+                              }`}
+                            >
+                              <span>{preset.emoji}</span>
+                              <span>{preset.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode 2: Device Upload Mode */}
+                  {imageInputMode === 'upload' && (
+                    <div className="space-y-2 pt-1 border-t border-slate-200/80">
+                      <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl cursor-pointer border border-slate-200 transition-colors shadow-2xs">
+                        <UploadCloud className="w-4 h-4 text-amber-600" />
+                        <span>Choose Photo from Device / Camera</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-[10px] text-slate-500">
+                        Supports JPG, PNG, WebP up to 5MB. Automatically compresses for speedy mobile ordering.
+                      </p>
+                      {isUploadingImage && (
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-amber-500 h-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

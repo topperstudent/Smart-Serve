@@ -13,6 +13,9 @@ import {
   ShieldCheck,
   Trash2,
   CheckCircle2,
+  Copy,
+  Globe,
+  ExternalLink,
 } from 'lucide-react';
 import {
   auth,
@@ -56,6 +59,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess, onExploreAsCust
 
   // Reset/Clean confirmation state
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [domainCopied, setDomainCopied] = useState(false);
 
   // Parse exact Firebase errors into friendly, transparent explanations
   const parseAuthError = (err: unknown, context: 'login' | 'signup' | 'google' | 'reset'): DetailedAuthError => {
@@ -203,6 +207,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess, onExploreAsCust
         title: 'Network Connection Issue',
         message: 'Unable to reach Firebase authentication servers.',
         suggestion: 'Please verify your internet connection and retry.',
+        rawError: rawMessage,
+      };
+    }
+
+    // 11. Domain not whitelisted in Firebase Console
+    if (code === 'auth/unauthorized-domain') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'preview-domain';
+      return {
+        code,
+        title: 'Preview Domain Not Whitelisted in Firebase Console',
+        message: `Firebase blocks Google popup sign-in on domains that haven't been added to your Firebase project's Authorized Domains whitelist. This is NOT because you need to buy a custom domain!`,
+        suggestion: `You can either copy your preview domain (${currentHost}) and add it to Firebase Console (under Authentication > Settings > Authorized domains), OR use the 1-Click Instant Owner Access below to enter your workspace immediately without any setup.`,
+        actionLabel: 'Enter Instantly with 1-Click Owner Access',
+        actionFn: () => handleInstantOwnerLogin(),
         rawError: rawMessage,
       };
     }
@@ -501,6 +519,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess, onExploreAsCust
               <div className="pl-6 text-[11px] text-rose-700 bg-rose-100/50 p-2 rounded-xl border border-rose-200/60">
                 <span className="font-bold">Suggestion: </span>
                 {detailedError.suggestion}
+              </div>
+            )}
+
+            {/* Domain Whitelist Helper Box for auth/unauthorized-domain */}
+            {detailedError.code === 'auth/unauthorized-domain' && typeof window !== 'undefined' && (
+              <div className="pl-6 pt-1 space-y-2">
+                <div className="bg-white border border-rose-200 rounded-xl p-3 text-[11px] text-slate-800 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-rose-950 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Current Preview Hostname:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.hostname);
+                        setDomainCopied(true);
+                        setTimeout(() => setDomainCopied(false), 3000);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] border border-rose-200 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{domainCopied ? 'Copied to Clipboard!' : 'Copy Hostname'}</span>
+                    </button>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg font-mono text-[10px] text-slate-700 break-all select-all border border-slate-200">
+                    {window.location.hostname}
+                  </div>
+                  <div className="text-[10px] text-slate-600 space-y-1">
+                    <p className="font-bold text-slate-800">How to whitelist in Firebase Console (30 seconds):</p>
+                    <ol className="list-decimal pl-4 space-y-0.5">
+                      <li>Go to Firebase Console &rarr; <b>Authentication</b> &rarr; <b>Settings</b> tab.</li>
+                      <li>Scroll down to <b>Authorized domains</b> and click <b>Add domain</b>.</li>
+                      <li>Paste the hostname above and click <b>Save</b>.</li>
+                    </ol>
+                    <p className="text-slate-500 italic pt-1">
+                      Note: You do NOT need to buy a domain! Firebase allows any preview or cloud hostname for free.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
