@@ -31,10 +31,11 @@ export default function App() {
     const restParam = params.get('restaurant');
     const tableParam = params.get('table');
     const viewParam = params.get('view');
+    const pathname = window.location.pathname;
 
-    if (tableParam) {
+    if (tableParam || pathname.includes('/menu')) {
       setCustomerRestaurantId(restParam || DEMO_RESTAURANT_ID);
-      setCustomerTableId(tableParam);
+      setCustomerTableId(tableParam || '1');
       setIsCustomerMode(true);
     } else if (viewParam === 'customer') {
       setCustomerRestaurantId(restParam || DEMO_RESTAURANT_ID);
@@ -104,22 +105,22 @@ export default function App() {
     const targetTable = customerTableId || '1';
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
         {/* Customer Top Bar */}
-        <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex items-center justify-between text-xs">
+        <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs shadow-xs">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
               S
             </div>
-            <span className="font-bold text-white">SmartServe Guest Ordering</span>
+            <span className="font-bold text-slate-900">SmartServe Guest Ordering</span>
           </div>
 
           <button
             onClick={() => setIsCustomerMode(false)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-colors"
           >
             <span>Staff / Owner Login</span>
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
           </button>
         </div>
 
@@ -135,11 +136,11 @@ export default function App() {
   // Initial Auth Loading Screen
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-['Plus_Jakarta_Sans',sans-serif]">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20 text-slate-950 animate-pulse">
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center text-slate-500 gap-3 font-['Plus_Jakarta_Sans',sans-serif]">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 text-white animate-pulse">
           <UtensilsCrossed className="w-6 h-6" />
         </div>
-        <p className="text-xs font-bold text-slate-300">Initializing SmartServe Terminal...</p>
+        <p className="text-xs font-bold text-slate-700">Initializing SmartServe Terminal...</p>
       </div>
     );
   }
@@ -160,7 +161,7 @@ export default function App() {
 
   // Authenticated Owner Experience
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Persistent Global Navigation */}
       {restaurant && (
         <Navbar

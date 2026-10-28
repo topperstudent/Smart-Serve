@@ -17,10 +17,9 @@ import {
   Trash2,
   Bell,
   Sparkles,
-  Info,
   ArrowRight,
   ShieldAlert,
-  SlidersHorizontal,
+  Download,
 } from 'lucide-react';
 import { Order, OrderStatus, OrderItem, Restaurant } from '../../types';
 import { restaurantService } from '../../services/restaurantService';
@@ -209,6 +208,24 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
     }
   };
 
+  // Export JSON Backup
+  const handleExportBackup = async () => {
+    try {
+      const json = await restaurantService.exportRestaurantData(restaurant.id);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smartserve_backup_${restaurant.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to export backup.');
+    }
+  };
+
   // Counts
   const newCount = orders.filter((o) => o.status === 'new').length;
   const prepCount = orders.filter((o) => o.status === 'preparing').length;
@@ -229,81 +246,90 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const editModalTotal = editItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-[#070A0F] text-slate-100 p-4 sm:p-6 lg:p-8" onClick={handleUnlockAudio}>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 p-4 sm:p-6 lg:p-8" onClick={handleUnlockAudio}>
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Industry Page Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+        {/* White Business Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-200/90">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                 Live Kitchen Pipeline
               </span>
-              <span className="text-slate-600">·</span>
-              <span className="text-xs text-slate-400 font-medium">
+              <span className="text-slate-300">·</span>
+              <span className="text-xs text-slate-500 font-medium">
                 {activeCount} active ticket{activeCount === 1 ? '' : 's'} in progress
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
               Orders Management
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               Real-time Firestore listener with browser speech announcements and audit tracking.
             </p>
           </div>
 
-          {/* Quick Metrics Bar */}
+          {/* Quick Metrics & Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="bg-slate-900/80 border border-white/[0.08] rounded-2xl px-3.5 py-2 flex items-center gap-3 shadow-md">
+            <div className="bg-white border border-slate-200/90 rounded-2xl px-3.5 py-2 flex items-center gap-3 shadow-2xs">
               <div className="text-left">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Kitchen Queue</p>
-                <p className="text-sm font-black text-amber-400">{newCount + prepCount} in Prep</p>
+                <p className="text-sm font-black text-amber-600">{newCount + prepCount} in Prep</p>
               </div>
-              <div className="h-6 w-px bg-white/[0.08]" />
+              <div className="h-6 w-px bg-slate-200" />
               <div className="text-left">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Ready to Serve</p>
-                <p className="text-sm font-black text-emerald-400">{readyCount} Plated</p>
+                <p className="text-sm font-black text-emerald-600">{readyCount} Plated</p>
               </div>
             </div>
 
             <button
+              onClick={handleExportBackup}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-2xs"
+              title="Download full JSON database backup of restaurant orders & menu"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Export Backup</span>
+            </button>
+
+            <button
               onClick={handleTestVoice}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 border border-white/[0.1] hover:border-amber-500/50 text-amber-400 hover:bg-slate-800 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-amber-700 hover:bg-amber-50 transition-all shadow-2xs"
               title="Click to test the speech synthesis announcement"
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play className="w-3.5 h-3.5 fill-current text-amber-600" />
               <span>Test Voice</span>
             </button>
 
             <button
               onClick={handleToggleMute}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border shadow-2xs ${
                 isMuted
-                  ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                  ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
               }`}
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              <span>{isMuted ? 'Muted' : 'Voice Alert On'}</span>
+              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              <span>{isMuted ? 'Muted' : 'Voice On'}</span>
             </button>
           </div>
         </div>
 
         {/* Autoplay unlock notice if browser requires user gesture */}
         {!audioUnlocked && (
-          <div className="p-3.5 bg-gradient-to-r from-amber-950/70 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg">
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-2xs">
             <div className="flex items-center gap-2.5">
-              <Bell className="w-4 h-4 text-amber-400 animate-bounce" />
-              <span className="text-slate-200">
-                <strong className="text-amber-400">Browser Audio Standby:</strong> Tap anywhere on this screen or click Enable to activate spoken ticket announcements for incoming orders.
+              <Bell className="w-4 h-4 text-amber-600 animate-bounce" />
+              <span className="text-slate-700">
+                <strong className="text-amber-800">Browser Audio Standby:</strong> Tap anywhere on this screen or click Enable to activate spoken ticket announcements for incoming orders.
               </span>
             </div>
             <button
               onClick={handleUnlockAudio}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold rounded-xl whitespace-nowrap shadow-md text-xs"
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl whitespace-nowrap shadow-sm text-xs"
             >
               Enable Voice
             </button>
@@ -312,17 +338,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
         {/* Recent announcement audit bar */}
         {lastAnnouncement && (
-          <div className="p-2.5 bg-slate-900/90 border border-white/[0.08] rounded-xl flex items-center justify-between text-xs text-slate-400">
+          <div className="p-2.5 bg-white border border-slate-200/90 rounded-xl flex items-center justify-between text-xs text-slate-600 shadow-2xs">
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <Volume2 className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-              <span className="text-slate-500 font-mono text-[11px]">[{lastAnnouncement.time}]</span>
-              <span className="text-slate-200 font-medium truncate">"{lastAnnouncement.message}"</span>
+              <Volume2 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+              <span className="text-slate-400 font-mono text-[11px]">[{lastAnnouncement.time}]</span>
+              <span className="text-slate-800 font-medium truncate">"{lastAnnouncement.message}"</span>
             </div>
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 lastAnnouncement.played
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
               }`}
             >
               {lastAnnouncement.played ? 'Audio Broadcast' : 'Visual Trigger'}
@@ -331,17 +357,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
         )}
 
         {/* Filter Navigation Tabs */}
-        <div className="flex items-center gap-1.5 border-b border-white/[0.08] pb-4 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 border-b border-slate-200/90 pb-3 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setFilter('all')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'all'
-                ? 'bg-white text-slate-950 font-bold shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-slate-900 text-white font-bold shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <span>All Tickets</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${filter === 'all' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-400'}`}>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}>
               {orders.length}
             </span>
           </button>
@@ -350,13 +376,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             onClick={() => setFilter('new')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'new'
-                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold shadow-md shadow-orange-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-amber-500 text-white font-bold shadow-sm shadow-amber-500/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-orange-400 animate-ping" />
             <span>New Orders</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${newCount > 0 ? 'bg-orange-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${newCount > 0 ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
               {newCount}
             </span>
           </button>
@@ -365,13 +391,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             onClick={() => setFilter('preparing')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'preparing'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-amber-500 text-white font-bold shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Flame className="w-3.5 h-3.5 text-amber-500" />
             <span>Cooking</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
               {prepCount}
             </span>
           </button>
@@ -380,13 +406,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             onClick={() => setFilter('ready')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'ready'
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-emerald-600 text-white font-bold shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             <span>Ready to Serve</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
               {readyCount}
             </span>
           </button>
@@ -395,13 +421,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             onClick={() => setFilter('served')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'served'
-                ? 'bg-slate-700 text-white font-bold'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-slate-800 text-white font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Utensils className="w-3.5 h-3.5" />
             <span>Served</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
               {servedCount}
             </span>
           </button>
@@ -410,29 +436,29 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             onClick={() => setFilter('cancelled')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
               filter === 'cancelled'
-                ? 'bg-red-500 text-white font-bold'
-                : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                ? 'bg-red-600 text-white font-bold'
+                : 'text-slate-600 hover:text-red-600 hover:bg-red-50'
             }`}
           >
             <XCircle className="w-3.5 h-3.5" />
             <span>Cancelled</span>
             {cancelledCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-red-950 text-red-300 border border-red-800/40">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
                 {cancelledCount}
               </span>
             )}
           </button>
         </div>
 
-        {/* Orders Grid */}
+        {/* Orders Grid - White Floating Cards */}
         <div>
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-20 bg-slate-900/40 rounded-3xl border border-white/[0.08] p-8 max-w-2xl mx-auto shadow-2xl">
-              <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-white/[0.08] flex items-center justify-center mx-auto mb-4 text-amber-400">
+            <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/90 p-8 max-w-2xl mx-auto shadow-2xs">
+              <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-4 text-amber-600">
                 <ChefHat className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-bold text-white">No tickets in this section</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <h3 className="text-lg font-bold text-slate-900">No tickets in this section</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                 {filter === 'all'
                   ? 'Your kitchen queue is clear. When guests scan table QR codes and submit orders, tickets will arrive in real time.'
                   : `Currently no orders matching filter "${filter}".`}
@@ -440,7 +466,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               {onNavigateToTables && (
                 <button
                   onClick={onNavigateToTables}
-                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 text-xs font-bold rounded-xl hover:opacity-95 shadow-md shadow-amber-500/20"
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors"
                 >
                   <span>Open Table QR Codes to Place a Test Order</span>
                   <ArrowRight className="w-4 h-4" />
@@ -463,50 +489,50 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 return (
                   <div
                     key={order.id}
-                    className={`flex flex-col justify-between rounded-2xl bg-[#0F172A] border transition-all duration-200 shadow-xl overflow-hidden glass-card-hover ${
+                    className={`flex flex-col justify-between rounded-2xl bg-white border transition-all duration-200 shadow-sm overflow-hidden saas-card-hover ${
                       isNew
-                        ? 'border-orange-500/80 ring-2 ring-orange-500/30 shadow-orange-500/10'
+                        ? 'border-amber-400 ring-2 ring-amber-400/20'
                         : isDelayed
-                        ? 'border-red-500/70 ring-2 ring-red-500/20 shadow-red-500/10'
+                        ? 'border-red-400 ring-2 ring-red-400/20'
                         : isPrep
-                        ? 'border-amber-500/40 shadow-amber-500/5'
+                        ? 'border-amber-300'
                         : isReady
-                        ? 'border-emerald-500/50 shadow-emerald-500/5'
+                        ? 'border-emerald-300'
                         : isCancelled
-                        ? 'border-red-900/30 opacity-70 bg-slate-950/80'
-                        : 'border-white/[0.08] opacity-85'
+                        ? 'border-slate-200 opacity-60 bg-slate-50/50'
+                        : 'border-slate-200/90'
                     }`}
                   >
-                    {/* Ticket Header */}
+                    {/* Card Header */}
                     <div
                       className={`p-4 flex items-center justify-between border-b ${
                         isNew
-                          ? 'bg-gradient-to-r from-orange-950/60 via-slate-900 to-slate-900 border-orange-500/30'
+                          ? 'bg-amber-50/80 border-amber-200'
                           : isDelayed
-                          ? 'bg-gradient-to-r from-red-950/60 via-slate-900 to-slate-900 border-red-500/30'
+                          ? 'bg-red-50/80 border-red-200'
                           : isPrep
-                          ? 'bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border-amber-500/20'
+                          ? 'bg-amber-50/40 border-amber-100'
                           : isReady
-                          ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/20'
+                          ? 'bg-emerald-50/40 border-emerald-100'
                           : isCancelled
-                          ? 'bg-red-950/30 border-red-900/30'
-                          : 'bg-slate-950 border-white/[0.06]'
+                          ? 'bg-red-50/30 border-red-100'
+                          : 'bg-slate-50/60 border-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black shadow-md ${
+                          className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black shadow-2xs ${
                             isNew
-                              ? 'bg-gradient-to-tr from-orange-500 to-amber-500 text-slate-950 animate-pulse'
+                              ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white animate-pulse'
                               : isDelayed
-                              ? 'bg-red-500 text-white'
+                              ? 'bg-red-600 text-white'
                               : isPrep
-                              ? 'bg-amber-500 text-slate-950'
+                              ? 'bg-amber-500 text-white'
                               : isReady
-                              ? 'bg-emerald-500 text-slate-950'
+                              ? 'bg-emerald-600 text-white'
                               : isCancelled
-                              ? 'bg-red-900/40 text-red-300'
-                              : 'bg-slate-800 text-slate-300'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-slate-100 text-slate-700'
                           }`}
                         >
                           <span className="text-[9px] uppercase tracking-wider font-extrabold leading-none">Table</span>
@@ -514,44 +540,44 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-white tracking-wide">#{order.id}</span>
+                            <span className="font-mono text-xs font-bold text-slate-900 tracking-wide">#{order.id}</span>
                             {isNew && (
-                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-500 text-slate-950 shadow-sm animate-bounce">
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-2xs animate-bounce">
                                 NEW
                               </span>
                             )}
                             {isDelayed && (
-                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500 text-white flex items-center gap-1 shadow-sm">
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1 shadow-2xs">
                                 <AlertTriangle className="w-2.5 h-2.5" />
                                 {elapsed.minutes}m Delay
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
                             <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-500" />
+                              <Clock className="w-3 h-3 text-slate-400" />
                               <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
                             <span>·</span>
-                            <span className={isDelayed ? 'text-red-400 font-bold' : 'text-slate-400'}>
+                            <span className={isDelayed ? 'text-red-600 font-bold' : 'text-slate-500'}>
                               {elapsed.text}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Status indicator tag */}
+                      {/* Status badge */}
                       <span
                         className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
                           isNew
-                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : isPrep
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : isReady
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             : isCancelled
-                            ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                            : 'bg-slate-800 text-slate-400'
+                            ? 'bg-red-100 text-red-800 border border-red-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
                         }`}
                       >
                         {order.status}
@@ -559,32 +585,32 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
 
                     {/* Ticket Items List */}
-                    <div className="p-4 flex-1 space-y-2.5 overflow-y-auto max-h-56 bg-slate-950/50">
+                    <div className="p-4 flex-1 space-y-2.5 overflow-y-auto max-h-56 bg-slate-50/30">
                       {order.items.map((item, idx) => (
-                        <div key={idx} className="flex items-start justify-between gap-3 text-sm pb-2.5 border-b border-white/[0.05] last:border-0 last:pb-0">
+                        <div key={idx} className="flex items-start justify-between gap-3 text-sm pb-2.5 border-b border-slate-100 last:border-0 last:pb-0">
                           <div className="flex items-start gap-2.5">
                             {/* Quantity pill */}
-                            <span className="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
+                            <span className="w-6 h-6 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
                               {item.quantity}x
                             </span>
                             <div>
                               <div className="flex items-center gap-1.5">
-                                {/* Indian Veg / Non-Veg square badge with inner circle */}
+                                {/* Indian Veg / Non-Veg square badge */}
                                 <div
                                   className={`w-3.5 h-3.5 border flex items-center justify-center p-0.5 rounded-sm flex-shrink-0 ${
-                                    item.isVeg ? 'border-emerald-500' : 'border-red-500'
+                                    item.isVeg ? 'border-emerald-600' : 'border-red-600'
                                   }`}
                                   title={item.isVeg ? 'Vegetarian' : 'Non-Vegetarian'}
                                 >
-                                  <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                  <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-emerald-600' : 'bg-red-600'}`} />
                                 </div>
-                                <span className="font-bold text-white leading-snug">{item.name}</span>
+                                <span className="font-bold text-slate-900 leading-snug">{item.name}</span>
                               </div>
-                              <span className="text-[11px] text-slate-400 font-mono">
+                              <span className="text-[11px] text-slate-500 font-mono">
                                 ₹{item.price} × {item.quantity} = ₹{item.price * item.quantity}
                               </span>
                               {item.specialInstructions && (
-                                <p className="text-[11px] text-amber-300 italic mt-0.5 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                                <p className="text-[11px] text-amber-800 italic mt-0.5 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                                   Note: {item.specialInstructions}
                                 </p>
                               )}
@@ -595,8 +621,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
                       {/* Guest General Order Note */}
                       {order.specialInstructions && (
-                        <div className="mt-2.5 p-2.5 bg-amber-950/30 border border-amber-500/30 rounded-xl text-xs text-amber-300">
-                          <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-400">
+                        <div className="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                          <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-700">
                             Table Special Request:
                           </span>
                           {order.specialInstructions}
@@ -605,13 +631,13 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
                       {/* Cancellation reason audit box */}
                       {isCancelled && (
-                        <div className="mt-2 p-2.5 bg-red-950/40 border border-red-900/40 rounded-xl text-xs text-red-300">
-                          <div className="flex items-center gap-1 font-bold text-red-400 mb-0.5">
+                        <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800">
+                          <div className="flex items-center gap-1 font-bold text-red-700 mb-0.5">
                             <ShieldAlert className="w-3.5 h-3.5" />
                             <span>Cancelled Ticket Audit</span>
                           </div>
                           <p>Reason: {order.cancellationReason || 'Staff cancelled'}</p>
-                          <p className="text-[10px] text-red-400/80 mt-1">
+                          <p className="text-[10px] text-red-600 mt-1">
                             By: {order.cancelledBy || 'Staff'} · {order.cancelledAt ? new Date(order.cancelledAt).toLocaleTimeString() : ''}
                           </p>
                         </div>
@@ -619,17 +645,17 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     </div>
 
                     {/* Card Footer & Progression Controls */}
-                    <div className="p-4 bg-slate-950 border-t border-white/[0.08]">
-                      <div className="flex items-center justify-between text-xs mb-3 text-slate-400">
-                        <span className="font-semibold text-white">
-                          Total: <strong className="text-amber-400 font-mono text-sm">₹{order.total}</strong>
+                    <div className="p-4 bg-white border-t border-slate-200/80">
+                      <div className="flex items-center justify-between text-xs mb-3 text-slate-600">
+                        <span className="font-semibold text-slate-700">
+                          Total: <strong className="text-slate-900 font-mono text-sm">₹{order.total}</strong>
                         </span>
                         <div className="flex items-center gap-2">
                           {/* Edit order items */}
                           {!isCancelled && (
                             <button
                               onClick={() => handleOpenEditModal(order)}
-                              className="text-slate-400 hover:text-amber-400 p-1 rounded hover:bg-slate-800 transition-colors"
+                              className="text-slate-500 hover:text-amber-600 p-1 rounded hover:bg-slate-100 transition-colors"
                               title="Edit items or adjust quantities"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -640,7 +666,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                           {!isCancelled && (
                             <button
                               onClick={() => handleOpenCancelModal(order)}
-                              className="text-slate-400 hover:text-red-400 p-1 rounded hover:bg-slate-800 transition-colors"
+                              className="text-slate-500 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition-colors"
                               title="Cancel this order ticket"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -654,7 +680,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         <button
                           disabled={isUpdating}
                           onClick={() => handleStatusChange(order.id, 'preparing')}
-                          className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all"
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all"
                         >
                           {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Flame className="w-4 h-4" />}
                           <span>Accept & Start Cooking</span>
@@ -665,7 +691,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         <button
                           disabled={isUpdating}
                           onClick={() => handleStatusChange(order.id, 'ready')}
-                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all"
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all"
                         >
                           {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                           <span>Mark Plated & Ready to Serve</span>
@@ -676,7 +702,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         <button
                           disabled={isUpdating}
                           onClick={() => handleStatusChange(order.id, 'served')}
-                          className="w-full bg-slate-800 hover:bg-slate-700 text-slate-100 border border-white/[0.1] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
                         >
                           {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Utensils className="w-4 h-4 text-emerald-400" />}
                           <span>Delivered to Table (Mark Served)</span>
@@ -684,15 +710,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       )}
 
                       {isServed && (
-                        <div className="w-full text-center text-xs font-semibold text-slate-400 py-1 flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <div className="w-full text-center text-xs font-semibold text-emerald-700 bg-emerald-50 py-2 rounded-xl border border-emerald-200 flex items-center justify-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           <span>Fulfilled & Served</span>
                         </div>
                       )}
 
                       {isCancelled && (
-                        <div className="w-full text-center text-xs font-semibold text-red-400 py-1 flex items-center justify-center gap-1.5">
-                          <XCircle className="w-4 h-4 text-red-500" />
+                        <div className="w-full text-center text-xs font-semibold text-red-700 bg-red-50 py-2 rounded-xl border border-red-200 flex items-center justify-center gap-1.5">
+                          <XCircle className="w-4 h-4 text-red-600" />
                           <span>Order Cancelled</span>
                         </div>
                       )}
@@ -707,33 +733,32 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
       {/* Cancellation Reason Modal */}
       {orderToCancel && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0F172A] border border-white/[0.12] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-slate-800">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-red-400 font-bold">
+              <div className="flex items-center gap-2 text-red-600 font-bold">
                 <AlertTriangle className="w-5 h-5" />
-                <h3 className="text-base text-white">Cancel Order #{orderToCancel.id}</h3>
+                <h3 className="text-base text-slate-900">Cancel Order #{orderToCancel.id}</h3>
               </div>
               <button
                 onClick={() => setOrderToCancel(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600">
               Cancelling an order deducts its value from net sales in Analytics and logs an audit record with your reason.
             </p>
 
-            {/* If order is already served, require secondary confirmation */}
             {orderToCancel.status === 'served' && (
-              <div className="p-3 bg-amber-950/50 border border-amber-500/40 rounded-xl text-xs text-amber-200 space-y-2">
-                <p className="font-bold flex items-center gap-1.5">
-                  <ShieldAlert className="w-4 h-4 text-amber-400" />
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 space-y-2">
+                <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                  <ShieldAlert className="w-4 h-4" />
                   Warning: Order already marked as Served
                 </p>
-                <p className="text-[11px] text-slate-300">
+                <p className="text-[11px] text-slate-700">
                   This order was already delivered to Table {orderToCancel.tableNumber}. Are you sure you wish to void or refund it?
                 </p>
                 <label className="flex items-center gap-2 pt-1 cursor-pointer">
@@ -741,9 +766,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     type="checkbox"
                     checked={confirmServedCancel}
                     onChange={(e) => setConfirmServedCancel(e.target.checked)}
-                    className="w-4 h-4 accent-amber-500 rounded"
+                    className="w-4 h-4 accent-amber-600 rounded"
                   />
-                  <span className="text-xs font-semibold text-white">
+                  <span className="text-xs font-semibold text-slate-900">
                     I confirm voiding this served order
                   </span>
                 </label>
@@ -751,7 +776,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Select or Enter Cancellation Reason:
               </label>
               <div className="grid grid-cols-2 gap-1.5 mb-2.5">
@@ -767,8 +792,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     onClick={() => setCancellationReason(reason)}
                     className={`text-[11px] p-2 rounded-xl text-left border transition-all ${
                       cancellationReason === reason
-                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
-                        : 'bg-slate-900 border-white/[0.08] text-slate-300 hover:bg-slate-800'
+                        ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     {reason}
@@ -780,7 +805,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 value={cancellationReason}
                 onChange={(e) => setCancellationReason(e.target.value)}
                 placeholder="Or type custom reason for the audit log..."
-                className="w-full bg-slate-900 border border-white/[0.1] rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50 resize-none h-20"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 resize-none h-20"
               />
             </div>
 
@@ -788,7 +813,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
               <button
                 type="button"
                 onClick={() => setOrderToCancel(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
               >
                 Keep Order
               </button>
@@ -796,7 +821,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                 type="button"
                 disabled={isCancelling || (orderToCancel.status === 'served' && !confirmServedCancel)}
                 onClick={handleConfirmCancel}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-md"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 {isCancelling ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
                 <span>Confirm Cancellation</span>
@@ -808,67 +833,59 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
       {/* Edit Order Modal */}
       {editingOrder && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0F172A] border border-white/[0.12] rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-800">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Edit2 className="w-4 h-4 text-amber-400" />
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Edit2 className="w-4 h-4 text-amber-600" />
                   Edit Ticket #{editingOrder.id}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Table {editingOrder.tableNumber} · Adjust quantities or remove items
                 </p>
               </div>
               <button
                 onClick={() => setEditingOrder(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 ✕
               </button>
             </div>
 
-            {/* If editing an order that was served */}
-            {editingOrder.status === 'served' && (
-              <div className="p-2.5 bg-amber-950/40 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
-                <span>Notice: Modifying an already served order will recalculate total revenue in reports.</span>
-              </div>
-            )}
-
-            <div className="space-y-2 max-h-60 overflow-y-auto bg-slate-950/60 p-3 rounded-2xl border border-white/[0.06]">
+            <div className="space-y-2 max-h-60 overflow-y-auto bg-slate-50 p-3 rounded-2xl border border-slate-200">
               {editItems.map((item, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between gap-3 p-2 rounded-xl bg-slate-900 border border-white/[0.06]"
+                  className="flex items-center justify-between gap-3 p-2 rounded-xl bg-white border border-slate-200 shadow-2xs"
                 >
                   <div className="flex-1">
-                    <p className="text-xs font-bold text-white leading-tight">{item.name}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">₹{item.price} each</p>
+                    <p className="text-xs font-bold text-slate-900 leading-tight">{item.name}</p>
+                    <p className="text-[11px] text-slate-500 font-mono">₹{item.price} each</p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleEditItemQty(index, -1)}
-                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors"
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-6 text-center text-xs font-mono font-bold text-amber-400">
+                    <span className="w-6 text-center text-xs font-mono font-bold text-slate-900">
                       {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleEditItemQty(index, 1)}
-                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors"
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditItems((prev) => prev.filter((_, i) => i !== index))}
-                      className="p-1.5 text-slate-500 hover:text-red-400 transition-colors ml-1"
+                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors ml-1"
                       title="Remove item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -879,29 +896,29 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Modification Note / Reason:
               </label>
               <input
                 type="text"
                 value={editNote}
                 onChange={(e) => setEditNote(e.target.value)}
-                placeholder="e.g. Guest removed one soup, added dessert"
-                className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                placeholder="e.g. Guest changed item, extra portion requested"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
               <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Recalculated Total</p>
-                <p className="text-base font-black text-amber-400 font-mono">₹{editModalTotal}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Recalculated Total</p>
+                <p className="text-base font-black text-slate-900 font-mono">₹{editModalTotal}</p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setEditingOrder(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
                 >
                   Discard
                 </button>
@@ -909,7 +926,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                   type="button"
                   disabled={isSavingEdit || editItems.length === 0}
                   onClick={handleSaveOrderEdit}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 text-slate-950 text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
                 >
                   {isSavingEdit ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   <span>Save Modifications</span>

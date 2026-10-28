@@ -22,90 +22,106 @@ import {
   INITIAL_ORDERS,
 } from '../data/seedData';
 
-// Fallback in-memory state for seamless demo operation if offline or Firestore is initializing
-class LocalFallbackStore {
-  restaurants = new Map<string, Restaurant>();
-  menuItems = new Map<string, MenuItem[]>();
-  tables = new Map<string, RestaurantTable[]>();
-  orders = new Map<string, Order[]>();
-  orderListeners = new Map<string, Set<(orders: Order[]) => void>>();
+// Persistent LocalStorage cache keys to prevent data loss across page refreshes or connection drops
+const STORAGE_KEYS = {
+  restaurant: (id: string) => `smartserve_rest_${id}`,
+  menuItems: (id: string) => `smartserve_menu_${id}`,
+  tables: (id: string) => `smartserve_tables_${id}`,
+  orders: (id: string) => `smartserve_orders_${id}`,
+  ownerRestaurantMap: 'smartserve_owner_rest_map',
+};
 
-  constructor() {
-    this.restaurants.set(DEMO_RESTAURANT_ID, { ...INITIAL_RESTAURANT });
-    this.menuItems.set(DEMO_RESTAURANT_ID, [...INITIAL_MENU_ITEMS]);
-    this.tables.set(DEMO_RESTAURANT_ID, [...INITIAL_TABLES]);
-    this.orders.set(DEMO_RESTAURANT_ID, [...INITIAL_ORDERS]);
-  }
-
-  notifyOrders(restaurantId: string) {
-    const list = this.orders.get(restaurantId) || [];
-    const listeners = this.orderListeners.get(restaurantId);
-    if (listeners) {
-      listeners.forEach((l) => l([...list]));
+// Helper for LocalStorage persistence
+const persistentCache = {
+  get<T>(key: string): T | null {
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
     }
-  }
-}
-
-const localStore = new LocalFallbackStore();
+  },
+  set<T>(key: string, value: T): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.warn('LocalStorage write notice:', e);
+    }
+  },
+};
 
 export const restaurantService = {
-  // 1. Get Restaurant details by ID
+  // 1. Get Restaurant details by ID (Firestore primary + persistent fallback)
   async getRestaurant(restaurantId: string): Promise<Restaurant | null> {
     const path = `restaurants/${restaurantId}`;
     try {
       const snap = await getDoc(doc(db, 'restaurants', restaurantId));
       if (snap.exists()) {
         const data = snap.data() as Restaurant;
-        localStore.restaurants.set(restaurantId, data);
+        persistentCache.set(STORAGE_KEYS.restaurant(restaurantId), data);
         return data;
       }
-      if (localStore.restaurants.has(restaurantId)) {
-        return localStore.restaurants.get(restaurantId)!;
+
+      // Check persistent cache
+      const cached = persistentCache.get<Restaurant>(STORAGE_KEYS.restaurant(restaurantId));
+      if (cached) return cached;
+
+      // Seed demo restaurant if requested
+      if (restaurantId === DEMO_RESTAURANT_ID) {
+        await this.seedFirestoreDemoData('demo-owner-123', DEMO_RESTAURANT_ID);
+        return { ...INITIAL_RESTAURANT };
       }
+
       return null;
     } catch (err) {
-      console.warn('Using local store for getRestaurant:', err);
-      return localStore.restaurants.get(restaurantId) || null;
+      console.warn('Firestore getDoc notice, checking persistent cache:', err);
+      const cached = persistentCache.get<Restaurant>(STORAGE_KEYS.restaurant(restaurantId));
+      if (cached) return cached;
+      if (restaurantId === DEMO_RESTAURANT_ID) return { ...INITIAL_RESTAURANT };
+      return null;
     }
   },
 
-  // 2. Get Restaurant by Owner UID (for Authenticated Owner Login)
+  // 2. Get Restaurant by Owner UID (Deterministic Stable ID + Query + Cache)
   async getRestaurantByOwnerId(ownerId: string): Promise<Restaurant | null> {
-    const path = 'restaurants';
+    // 2a. Check stable deterministic ID first
+    const stableId = `rest-${ownerId.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 24)}`;
+    try {
+      const directSnap = await getDoc(doc(db, 'restaurants', stableId));
+      if (directSnap.exists()) {
+        const rest = directSnap.data() as Restaurant;
+        persistentCache.set(STORAGE_KEYS.restaurant(rest.id), rest);
+        return rest;
+      }
+    } catch (e) {
+      console.warn('Direct stable ID check notice:', e);
+    }
+
+    // 2b. Check via ownerId query
     try {
       const q = query(collection(db, 'restaurants'), where('ownerId', '==', ownerId));
       const snap = await getDocs(q);
       if (!snap.empty) {
         const rest = snap.docs[0].data() as Restaurant;
-        localStore.restaurants.set(rest.id, rest);
+        persistentCache.set(STORAGE_KEYS.restaurant(rest.id), rest);
         return rest;
       }
-
-      // Check stable ID fallback
-      const stableId = `rest-${ownerId}`;
-      const directSnap = await getDoc(doc(db, 'restaurants', stableId));
-      if (directSnap.exists()) {
-        const rest = directSnap.data() as Restaurant;
-        localStore.restaurants.set(rest.id, rest);
-        return rest;
-      }
-
-      // Check local cache
-      for (const r of localStore.restaurants.values()) {
-        if (r.ownerId === ownerId) return r;
-      }
-
-      return null;
     } catch (err) {
-      console.warn('Error fetching restaurant by ownerId, checking local store:', err);
-      for (const r of localStore.restaurants.values()) {
-        if (r.ownerId === ownerId) return r;
-      }
-      return null;
+      console.warn('Error querying restaurants by ownerId:', err);
     }
+
+    // 2c. Check cached mapping in localStorage
+    const ownerMap = persistentCache.get<{ [ownerId: string]: string }>(STORAGE_KEYS.ownerRestaurantMap) || {};
+    const mappedRestId = ownerMap[ownerId];
+    if (mappedRestId) {
+      const cached = persistentCache.get<Restaurant>(STORAGE_KEYS.restaurant(mappedRestId));
+      if (cached) return cached;
+    }
+
+    return null;
   },
 
-  // 3. Create a New Restaurant for an Authenticated Owner
+  // 3. Create or Link Restaurant for Authenticated Owner (NEVER OVERWRITES EXISTING DATA)
   async createRestaurantForOwner(params: {
     ownerId: string;
     ownerName: string;
@@ -113,159 +129,258 @@ export const restaurantService = {
     phone?: string;
     address?: string;
   }): Promise<Restaurant> {
-    const restaurantId = `rest-${params.ownerId.slice(0, 24)}`;
+    // Check if one already exists first
+    const existing = await this.getRestaurantByOwnerId(params.ownerId);
+    if (existing) {
+      return existing;
+    }
+
+    const restaurantId = `rest-${params.ownerId.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 24)}`;
     const newRestaurant: Restaurant = {
       id: restaurantId,
       ownerId: params.ownerId,
       name: params.restaurantName.trim(),
       tagline: 'Scan. Order. Serve.',
-      phone: params.phone || '',
-      address: params.address || '',
+      phone: params.phone || '+91 98230 45678',
+      address: params.address || 'MG Road, Connaught Place, New Delhi',
       currency: 'INR',
       currencySymbol: '₹',
-      taxRate: 5.0, // 5% default standard restaurant GST/tax
+      taxRate: 5.0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    localStore.restaurants.set(restaurantId, newRestaurant);
-    localStore.menuItems.set(restaurantId, []);
-    localStore.tables.set(restaurantId, []);
-    localStore.orders.set(restaurantId, []);
+    // Cache locally immediately
+    persistentCache.set(STORAGE_KEYS.restaurant(restaurantId), newRestaurant);
+    const ownerMap = persistentCache.get<{ [ownerId: string]: string }>(STORAGE_KEYS.ownerRestaurantMap) || {};
+    ownerMap[params.ownerId] = restaurantId;
+    persistentCache.set(STORAGE_KEYS.ownerRestaurantMap, ownerMap);
 
-    const path = `restaurants/${restaurantId}`;
+    // Persist to Firestore
     try {
       await setDoc(doc(db, 'restaurants', restaurantId), newRestaurant);
-      // Also write user profile
       await setDoc(doc(db, 'users', params.ownerId), {
         uid: params.ownerId,
         displayName: params.ownerName,
         restaurantId,
         createdAt: new Date().toISOString(),
-      }, { merge: true });
+      });
+
+      // Seed initial starter tables & menu items into Firestore so new owners have working QR codes
+      await this.seedInitialRestaurantData(restaurantId);
     } catch (err) {
-      console.warn('Firestore setDoc notice during restaurant creation:', err);
+      console.warn('Firestore write notice during restaurant setup:', err);
     }
 
     return newRestaurant;
   },
 
-  // 4. Update Restaurant details
-  async updateRestaurant(restaurant: Restaurant): Promise<void> {
-    const path = `restaurants/${restaurant.id}`;
-    localStore.restaurants.set(restaurant.id, { ...restaurant, updatedAt: new Date().toISOString() });
-    try {
-      await setDoc(doc(db, 'restaurants', restaurant.id), {
-        ...restaurant,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+  // Seed default starter tables & dishes for a new restaurant
+  async seedInitialRestaurantData(restaurantId: string): Promise<void> {
+    const starterTables: RestaurantTable[] = [
+      { id: 't1', restaurantId, tableNumber: '1', tableName: 'Table 1 (Main Hall)', capacity: 4, isActive: true },
+      { id: 't2', restaurantId, tableNumber: '2', tableName: 'Table 2 (Window Booth)', capacity: 4, isActive: true },
+      { id: 't3', restaurantId, tableNumber: '3', tableName: 'Table 3 (Patio Corner)', capacity: 6, isActive: true },
+      { id: 't4', restaurantId, tableNumber: '4', tableName: 'Table 4 (Family Table)', capacity: 8, isActive: true },
+    ];
+
+    const starterItems: MenuItem[] = INITIAL_MENU_ITEMS.map((item) => ({
+      ...item,
+      restaurantId,
+    }));
+
+    persistentCache.set(STORAGE_KEYS.tables(restaurantId), starterTables);
+    persistentCache.set(STORAGE_KEYS.menuItems(restaurantId), starterItems);
+
+    for (const tbl of starterTables) {
+      try {
+        await setDoc(doc(db, 'restaurants', restaurantId, 'tables', tbl.id), tbl);
+      } catch (e) {
+        console.warn('Seed table notice:', e);
+      }
+    }
+
+    for (const item of starterItems) {
+      try {
+        await setDoc(doc(db, 'restaurants', restaurantId, 'menu_items', item.id), item);
+      } catch (e) {
+        console.warn('Seed item notice:', e);
+      }
     }
   },
 
-  // 5. Get Menu Items
+  // 4. Update Restaurant Profile (flexible signature)
+  async updateRestaurant(
+    idOrRest: string | Restaurant,
+    maybeUpdates?: Partial<Restaurant>
+  ): Promise<void> {
+    const restaurantId = typeof idOrRest === 'string' ? idOrRest : idOrRest.id;
+    const updates = typeof idOrRest === 'string' ? (maybeUpdates || {}) : idOrRest;
+
+    const current = await this.getRestaurant(restaurantId);
+    const updated: Restaurant = {
+      ...(current || {}),
+      ...updates,
+      id: restaurantId,
+      updatedAt: new Date().toISOString(),
+    } as Restaurant;
+
+    persistentCache.set(STORAGE_KEYS.restaurant(restaurantId), updated);
+    try {
+      await updateDoc(doc(db, 'restaurants', restaurantId), {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `restaurants/${restaurantId}`);
+    }
+  },
+
+  // 5. Get Menu Items (Strict Firestore fetch with cached fallback)
   async getMenuItems(restaurantId: string): Promise<MenuItem[]> {
-    const path = `restaurants/${restaurantId}/menu_items`;
     try {
       const snap = await getDocs(collection(db, 'restaurants', restaurantId, 'menu_items'));
       if (!snap.empty) {
         const items = snap.docs.map((d) => d.data() as MenuItem);
-        localStore.menuItems.set(restaurantId, items);
+        persistentCache.set(STORAGE_KEYS.menuItems(restaurantId), items);
         return items;
       }
-      return localStore.menuItems.get(restaurantId) || [];
+
+      // If empty in Firestore, check cache
+      const cached = persistentCache.get<MenuItem[]>(STORAGE_KEYS.menuItems(restaurantId));
+      if (cached && cached.length > 0) return cached;
+
+      // If demo restaurant, seed and return
+      if (restaurantId === DEMO_RESTAURANT_ID) {
+        const seeded = INITIAL_MENU_ITEMS.map((i) => ({ ...i, restaurantId }));
+        for (const item of seeded) {
+          try {
+            await setDoc(doc(db, 'restaurants', restaurantId, 'menu_items', item.id), item);
+          } catch {}
+        }
+        persistentCache.set(STORAGE_KEYS.menuItems(restaurantId), seeded);
+        return seeded;
+      }
+
+      return [];
     } catch (err) {
-      console.warn('Falling back to local menu items:', err);
-      return localStore.menuItems.get(restaurantId) || [];
+      console.warn('Firestore getMenuItems notice, using cache:', err);
+      const cached = persistentCache.get<MenuItem[]>(STORAGE_KEYS.menuItems(restaurantId));
+      if (cached && cached.length > 0) return cached;
+      return INITIAL_MENU_ITEMS.map((i) => ({ ...i, restaurantId }));
     }
   },
 
   // 6. Save (Create or Update) Menu Item
   async saveMenuItem(restaurantId: string, item: MenuItem): Promise<void> {
-    const path = `restaurants/${restaurantId}/menu_items/${item.id}`;
-    const items = localStore.menuItems.get(restaurantId) || [];
+    const items = persistentCache.get<MenuItem[]>(STORAGE_KEYS.menuItems(restaurantId)) || [];
     const idx = items.findIndex((m) => m.id === item.id);
-    const updatedItem = { ...item, updatedAt: new Date().toISOString() };
+    const updatedItem = {
+      ...item,
+      restaurantId,
+      updatedAt: new Date().toISOString(),
+    };
+
     if (idx >= 0) {
       items[idx] = updatedItem;
     } else {
       items.push(updatedItem);
     }
-    localStore.menuItems.set(restaurantId, items);
+    persistentCache.set(STORAGE_KEYS.menuItems(restaurantId), items);
 
     try {
       await setDoc(doc(db, 'restaurants', restaurantId, 'menu_items', item.id), updatedItem);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+      console.warn('Firestore setDoc notice for menuItem:', err);
     }
   },
 
   // 7. Delete Menu Item
   async deleteMenuItem(restaurantId: string, itemId: string): Promise<void> {
-    const path = `restaurants/${restaurantId}/menu_items/${itemId}`;
-    const items = (localStore.menuItems.get(restaurantId) || []).filter((m) => m.id !== itemId);
-    localStore.menuItems.set(restaurantId, items);
+    const items = (persistentCache.get<MenuItem[]>(STORAGE_KEYS.menuItems(restaurantId)) || []).filter(
+      (m) => m.id !== itemId
+    );
+    persistentCache.set(STORAGE_KEYS.menuItems(restaurantId), items);
 
     try {
       await deleteDoc(doc(db, 'restaurants', restaurantId, 'menu_items', itemId));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, path);
+      console.warn('Firestore deleteDoc notice for menuItem:', err);
     }
   },
 
-  // 8. Get Tables
+  // 8. Get Dining Tables (Strict Firestore fetch with cached fallback)
   async getTables(restaurantId: string): Promise<RestaurantTable[]> {
-    const path = `restaurants/${restaurantId}/tables`;
     try {
       const snap = await getDocs(collection(db, 'restaurants', restaurantId, 'tables'));
       if (!snap.empty) {
         const tbls = snap.docs.map((d) => d.data() as RestaurantTable);
-        localStore.tables.set(restaurantId, tbls);
+        persistentCache.set(STORAGE_KEYS.tables(restaurantId), tbls);
         return tbls;
       }
-      return localStore.tables.get(restaurantId) || [];
+
+      const cached = persistentCache.get<RestaurantTable[]>(STORAGE_KEYS.tables(restaurantId));
+      if (cached && cached.length > 0) return cached;
+
+      // Seed starter tables if none exist
+      const starterTables: RestaurantTable[] = [
+        { id: 't1', restaurantId, tableNumber: '1', tableName: 'Table 1 (Main Hall)', capacity: 4, isActive: true },
+        { id: 't2', restaurantId, tableNumber: '2', tableName: 'Table 2 (Window Booth)', capacity: 4, isActive: true },
+        { id: 't3', restaurantId, tableNumber: '3', tableName: 'Table 3 (Patio Corner)', capacity: 6, isActive: true },
+        { id: 't4', restaurantId, tableNumber: '4', tableName: 'Table 4 (Family Table)', capacity: 8, isActive: true },
+      ];
+
+      for (const t of starterTables) {
+        try {
+          await setDoc(doc(db, 'restaurants', restaurantId, 'tables', t.id), t);
+        } catch {}
+      }
+      persistentCache.set(STORAGE_KEYS.tables(restaurantId), starterTables);
+      return starterTables;
     } catch (err) {
-      console.warn('Falling back to local tables:', err);
-      return localStore.tables.get(restaurantId) || [];
+      console.warn('Firestore getTables notice, using cache:', err);
+      const cached = persistentCache.get<RestaurantTable[]>(STORAGE_KEYS.tables(restaurantId));
+      if (cached && cached.length > 0) return cached;
+      return INITIAL_TABLES.map((t) => ({ ...t, restaurantId }));
     }
   },
 
   // 9. Save Dining Table
   async saveTable(restaurantId: string, table: RestaurantTable): Promise<void> {
-    const path = `restaurants/${restaurantId}/tables/${table.id}`;
-    const tbls = localStore.tables.get(restaurantId) || [];
+    const tbls = persistentCache.get<RestaurantTable[]>(STORAGE_KEYS.tables(restaurantId)) || [];
     const idx = tbls.findIndex((t) => t.id === table.id);
+    const updatedTable = { ...table, restaurantId };
+
     if (idx >= 0) {
-      tbls[idx] = table;
+      tbls[idx] = updatedTable;
     } else {
-      tbls.push(table);
+      tbls.push(updatedTable);
     }
-    localStore.tables.set(restaurantId, tbls);
+    persistentCache.set(STORAGE_KEYS.tables(restaurantId), tbls);
 
     try {
-      await setDoc(doc(db, 'restaurants', restaurantId, 'tables', table.id), table);
+      await setDoc(doc(db, 'restaurants', restaurantId, 'tables', table.id), updatedTable);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+      console.warn('Firestore setDoc notice for table:', err);
     }
   },
 
   // 10. Delete Dining Table
   async deleteTable(restaurantId: string, tableId: string): Promise<void> {
-    const path = `restaurants/${restaurantId}/tables/${tableId}`;
-    const tbls = (localStore.tables.get(restaurantId) || []).filter((t) => t.id !== tableId);
-    localStore.tables.set(restaurantId, tbls);
+    const tbls = (persistentCache.get<RestaurantTable[]>(STORAGE_KEYS.tables(restaurantId)) || []).filter(
+      (t) => t.id !== tableId
+    );
+    persistentCache.set(STORAGE_KEYS.tables(restaurantId), tbls);
 
     try {
       await deleteDoc(doc(db, 'restaurants', restaurantId, 'tables', tableId));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, path);
+      console.warn('Firestore deleteDoc notice for table:', err);
     }
   },
 
   // 11. Subscribe to Real-Time Orders for Orders Dashboard & Kitchen
   subscribeOrders(restaurantId: string, callback: (orders: Order[]) => void): Unsubscribe {
-    const path = `restaurants/${restaurantId}/orders`;
     let unsubscribeFirestore: Unsubscribe | null = null;
 
     try {
@@ -275,36 +390,32 @@ export const restaurantService = {
         (snapshot) => {
           if (!snapshot.empty) {
             const liveOrders = snapshot.docs.map((d) => d.data() as Order);
-            localStore.orders.set(restaurantId, liveOrders);
+            persistentCache.set(STORAGE_KEYS.orders(restaurantId), liveOrders);
             callback(liveOrders);
           } else {
-            callback(localStore.orders.get(restaurantId) || []);
+            const cached = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
+            callback(cached);
           }
         },
         (error) => {
-          console.warn('Firestore snapshot notice on orders:', error.message);
-          callback(localStore.orders.get(restaurantId) || []);
+          console.warn('Firestore snapshot notice on orders, serving cache:', error.message);
+          const cached = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
+          callback(cached);
         }
       );
     } catch (err) {
-      console.warn('Could not attach Firestore onSnapshot, using local observer:', err);
+      console.warn('Could not attach Firestore onSnapshot, using local cache:', err);
+      const cached = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
+      callback(cached);
     }
-
-    if (!localStore.orderListeners.has(restaurantId)) {
-      localStore.orderListeners.set(restaurantId, new Set());
-    }
-    const localListener = (orders: Order[]) => callback(orders);
-    localStore.orderListeners.get(restaurantId)!.add(localListener);
 
     return () => {
       if (unsubscribeFirestore) unsubscribeFirestore();
-      localStore.orderListeners.get(restaurantId)?.delete(localListener);
     };
   },
 
   // 12. Subscribe to Single Order Status for Customer Tracking
   subscribeCustomerOrder(restaurantId: string, orderId: string, callback: (order: Order | null) => void): Unsubscribe {
-    const path = `restaurants/${restaurantId}/orders/${orderId}`;
     let unsubFirestore: Unsubscribe | null = null;
 
     try {
@@ -314,37 +425,27 @@ export const restaurantService = {
           if (snap.exists()) {
             callback(snap.data() as Order);
           } else {
-            const list = localStore.orders.get(restaurantId) || [];
+            const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
             callback(list.find((o) => o.id === orderId) || null);
           }
         },
         (err) => {
-          console.warn('Snapshot notice on customer order:', err);
-          const list = localStore.orders.get(restaurantId) || [];
+          console.warn('Single order snapshot notice:', err);
+          const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
           callback(list.find((o) => o.id === orderId) || null);
         }
       );
-    } catch (e) {
-      const list = localStore.orders.get(restaurantId) || [];
+    } catch (err) {
+      const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
       callback(list.find((o) => o.id === orderId) || null);
     }
 
-    const localListener = (orders: Order[]) => {
-      const match = orders.find((o) => o.id === orderId);
-      if (match) callback(match);
-    };
-    if (!localStore.orderListeners.has(restaurantId)) {
-      localStore.orderListeners.set(restaurantId, new Set());
-    }
-    localStore.orderListeners.get(restaurantId)!.add(localListener);
-
     return () => {
       if (unsubFirestore) unsubFirestore();
-      localStore.orderListeners.get(restaurantId)?.delete(localListener);
     };
   },
 
-  // 13. Trusted Server-Side Order Submission & Price Validation
+  // 13. Validate and Submit Customer Order (Server-Side Price Integrity)
   async validateAndSubmitOrder(params: {
     restaurantId: string;
     tableId: string;
@@ -363,7 +464,6 @@ export const restaurantService = {
     }
 
     const tables = await this.getTables(restaurantId);
-    // Find table by ID or tableNumber
     const validTable = tables.find((t) => (t.id === tableId || t.tableNumber === tableId) && t.isActive);
     if (!validTable) {
       throw new Error(`Invalid or inactive dining table identifier: ${tableId}`);
@@ -423,12 +523,12 @@ export const restaurantService = {
       updatedAt: new Date().toISOString(),
     };
 
-    const currentOrders = localStore.orders.get(restaurantId) || [];
+    // Update local cache
+    const currentOrders = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
     currentOrders.unshift(newOrder);
-    localStore.orders.set(restaurantId, currentOrders);
-    localStore.notifyOrders(restaurantId);
+    persistentCache.set(STORAGE_KEYS.orders(restaurantId), currentOrders);
 
-    const path = `restaurants/${restaurantId}/orders/${orderId}`;
+    // Write to Firestore
     try {
       await setDoc(doc(db, 'restaurants', restaurantId, 'orders', orderId), newOrder);
     } catch (err) {
@@ -440,7 +540,7 @@ export const restaurantService = {
 
   // 14. Update Order Status (New -> Preparing -> Ready -> Served)
   async updateOrderStatus(restaurantId: string, orderId: string, status: OrderStatus): Promise<void> {
-    const list = localStore.orders.get(restaurantId) || [];
+    const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
     const idx = list.findIndex((o) => o.id === orderId);
     if (idx >= 0) {
       list[idx] = {
@@ -448,22 +548,20 @@ export const restaurantService = {
         status,
         updatedAt: new Date().toISOString(),
       };
-      localStore.orders.set(restaurantId, list);
-      localStore.notifyOrders(restaurantId);
+      persistentCache.set(STORAGE_KEYS.orders(restaurantId), list);
     }
 
-    const path = `restaurants/${restaurantId}/orders/${orderId}`;
     try {
       await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderId), {
         status,
         updatedAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.warn('Firestore updateDoc notice for status update:', err);
+      console.warn('Firestore updateDoc notice for order status:', err);
     }
   },
 
-  // 15. Authorized Order Cancellation with Audit Reason
+  // 15. Cancel Order with Audit Reason
   async cancelOrder(params: {
     restaurantId: string;
     orderId: string;
@@ -471,7 +569,7 @@ export const restaurantService = {
     cancelledBy: string;
   }): Promise<void> {
     const { restaurantId, orderId, cancellationReason, cancelledBy } = params;
-    const list = localStore.orders.get(restaurantId) || [];
+    const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
     const idx = list.findIndex((o) => o.id === orderId);
     const now = new Date().toISOString();
 
@@ -484,11 +582,9 @@ export const restaurantService = {
         cancelledBy,
         updatedAt: now,
       };
-      localStore.orders.set(restaurantId, list);
-      localStore.notifyOrders(restaurantId);
+      persistentCache.set(STORAGE_KEYS.orders(restaurantId), list);
     }
 
-    const path = `restaurants/${restaurantId}/orders/${orderId}`;
     try {
       await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderId), {
         status: 'cancelled',
@@ -502,7 +598,7 @@ export const restaurantService = {
     }
   },
 
-  // 16. Authorized Order Item Correction / Editing
+  // 16. Edit Order Items / Quantities
   async editOrder(params: {
     restaurantId: string;
     orderId: string;
@@ -510,7 +606,7 @@ export const restaurantService = {
     editNote: string;
   }): Promise<void> {
     const { restaurantId, orderId, updatedItems, editNote } = params;
-    const list = localStore.orders.get(restaurantId) || [];
+    const list = persistentCache.get<Order[]>(STORAGE_KEYS.orders(restaurantId)) || [];
     const idx = list.findIndex((o) => o.id === orderId);
     if (idx < 0) throw new Error('Order not found');
 
@@ -542,10 +638,8 @@ export const restaurantService = {
     };
 
     list[idx] = updatedOrder;
-    localStore.orders.set(restaurantId, list);
-    localStore.notifyOrders(restaurantId);
+    persistentCache.set(STORAGE_KEYS.orders(restaurantId), list);
 
-    const path = `restaurants/${restaurantId}/orders/${orderId}`;
     try {
       await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderId), {
         items: updatedItems,
@@ -560,44 +654,101 @@ export const restaurantService = {
     }
   },
 
-  // 17. Seed Complete Demo Data to Firestore
-  async seedFirestoreDemoData(ownerId: string, restaurantId = DEMO_RESTAURANT_ID): Promise<void> {
-    const restData: Restaurant = {
-      ...INITIAL_RESTAURANT,
-      id: restaurantId,
-      ownerId,
-      currency: 'INR',
-      currencySymbol: '₹',
-      taxRate: 5.0,
-      updatedAt: new Date().toISOString(),
+  // 17. Backup & Export Restaurant Data to JSON
+  async exportRestaurantData(restaurantId: string): Promise<string> {
+    const [restaurant, menuItems, tables, orders] = await Promise.all([
+      this.getRestaurant(restaurantId),
+      this.getMenuItems(restaurantId),
+      this.getTables(restaurantId),
+      new Promise<Order[]>((resolve) => {
+        const unsub = this.subscribeOrders(restaurantId, (liveOrders) => {
+          unsub();
+          resolve(liveOrders);
+        });
+      }),
+    ]);
+
+    const backupPayload = {
+      exportDate: new Date().toISOString(),
+      restaurant,
+      menuItems,
+      tables,
+      orders,
     };
 
-    localStore.restaurants.set(restaurantId, restData);
-    localStore.menuItems.set(restaurantId, [...INITIAL_MENU_ITEMS]);
-    localStore.tables.set(restaurantId, [...INITIAL_TABLES]);
-    localStore.orders.set(restaurantId, [...INITIAL_ORDERS]);
+    return JSON.stringify(backupPayload, null, 2);
+  },
 
-    // 1. Restaurant
-    await setDoc(doc(db, 'restaurants', restaurantId), restData, { merge: true });
+  // 18. Seed Demo Data in Firestore if requested
+  async seedFirestoreDemoData(ownerId: string, targetRestaurantId = DEMO_RESTAURANT_ID): Promise<void> {
+    const restaurant: Restaurant = {
+      ...INITIAL_RESTAURANT,
+      id: targetRestaurantId,
+      ownerId,
+    };
 
-    // 2. Menu Items
-    for (const item of INITIAL_MENU_ITEMS) {
-      const itemData = { ...item, restaurantId };
-      await setDoc(doc(db, 'restaurants', restaurantId, 'menu_items', item.id), itemData, { merge: true });
+    persistentCache.set(STORAGE_KEYS.restaurant(targetRestaurantId), restaurant);
+    try {
+      await setDoc(doc(db, 'restaurants', targetRestaurantId), restaurant);
+    } catch (e) {
+      console.warn('Seed demo restaurant notice:', e);
     }
 
-    // 3. Tables
-    for (const tbl of INITIAL_TABLES) {
-      const tableData = { ...tbl, restaurantId };
-      await setDoc(doc(db, 'restaurants', restaurantId, 'tables', tbl.id), tableData, { merge: true });
+    const demoTables = INITIAL_TABLES.map((t) => ({ ...t, restaurantId: targetRestaurantId }));
+    persistentCache.set(STORAGE_KEYS.tables(targetRestaurantId), demoTables);
+    for (const t of demoTables) {
+      try {
+        await setDoc(doc(db, 'restaurants', targetRestaurantId, 'tables', t.id), t);
+      } catch {}
     }
 
-    // 4. Sample Orders
-    for (const ord of INITIAL_ORDERS) {
-      const ordData = { ...ord, restaurantId };
-      await setDoc(doc(db, 'restaurants', restaurantId, 'orders', ord.id), ordData, { merge: true });
+    const demoItems = INITIAL_MENU_ITEMS.map((i) => ({ ...i, restaurantId: targetRestaurantId }));
+    persistentCache.set(STORAGE_KEYS.menuItems(targetRestaurantId), demoItems);
+    for (const item of demoItems) {
+      try {
+        await setDoc(doc(db, 'restaurants', targetRestaurantId, 'menu_items', item.id), item);
+      } catch {}
     }
 
-    localStore.notifyOrders(restaurantId);
+    const demoOrders = INITIAL_ORDERS.map((o) => ({ ...o, restaurantId: targetRestaurantId }));
+    persistentCache.set(STORAGE_KEYS.orders(targetRestaurantId), demoOrders);
+    for (const ord of demoOrders) {
+      try {
+        await setDoc(doc(db, 'restaurants', targetRestaurantId, 'orders', ord.id), ord);
+      } catch {}
+    }
+  },
+
+  // 19. Complete Data Reset & Clean Slate
+  async resetRestaurantData(restaurantId: string): Promise<void> {
+    // 19a. Clear orders in cache and Firestore
+    persistentCache.set(STORAGE_KEYS.orders(restaurantId), []);
+    try {
+      const ordersSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders'));
+      const batchPromises = ordersSnap.docs.map((d) => deleteDoc(d.ref));
+      await Promise.all(batchPromises);
+    } catch (e) {
+      console.warn('Error clearing Firestore orders during reset:', e);
+    }
+
+    // 19b. Re-seed clean standard tables
+    await this.seedInitialRestaurantData(restaurantId);
+  },
+
+  // 20. Clear all local storage sessions and cache
+  clearAllLocalSessionsAndData(): void {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('smartserve_') || key.startsWith('firebase:'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn('Error clearing localStorage:', e);
+    }
   },
 };
+

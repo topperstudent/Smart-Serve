@@ -11,12 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   Image as ImageIcon,
-  Sparkles,
-  ShieldCheck,
   Check,
-  Tag,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
 import { MenuItem, Restaurant } from '../../types';
 import { restaurantService } from '../../services/restaurantService';
@@ -133,7 +128,6 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
     setFormError(null);
     setUploadNotice(null);
 
-    // Validate size and mime type
     const validation = storageService.validateImageFile(file);
     if (!validation.valid) {
       setFormError(validation.error || 'Invalid file');
@@ -142,14 +136,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
     setImageFile(file);
 
-    // Create instant local preview
     const reader = new FileReader();
     reader.onload = () => {
       setImagePreview(reader.result as string);
     };
     reader.readAsDataURL(file);
 
-    // Immediately trigger upload
     setIsUploadingImage(true);
     setUploadProgress(15);
 
@@ -195,7 +187,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
   // Delete item
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to remove this item from the active menu?')) return;
+    if (!confirm('Are you sure you want to remove this dish from the menu?')) return;
     try {
       await restaurantService.deleteMenuItem(restaurant.id, itemId);
       setMenuItems((prev) => prev.filter((i) => i.id !== itemId));
@@ -228,7 +220,8 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
     setIsSaving(true);
     try {
-      const itemData: Omit<MenuItem, 'id'> = {
+      const itemToSave: MenuItem = {
+        id: editingItem ? editingItem.id : `item-${Date.now()}`,
         name: formName.trim(),
         price: priceNum,
         category: resolvedCategory,
@@ -239,12 +232,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
         restaurantId: restaurant.id,
       };
 
-      const itemToSave: MenuItem = {
-        id: editingItem ? editingItem.id : `item-${Date.now()}`,
-        ...itemData,
-      };
       await restaurantService.saveMenuItem(restaurant.id, itemToSave);
-
       await loadItems();
       setIsModalOpen(false);
     } catch (err: unknown) {
@@ -256,31 +244,31 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070A0F] text-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/90">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 font-mono">
                 MENU CATALOG
               </span>
-              <span className="text-slate-500">·</span>
-              <span className="text-xs text-slate-400 font-medium">
+              <span className="text-slate-300">·</span>
+              <span className="text-xs text-slate-500 font-medium">
                 {menuItems.length} active dishes in catalog
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
               Menu & Food Catalog
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               Add photos from device, toggle live 86 / sold-out status, and manage categories.
             </p>
           </div>
 
           <button
             onClick={handleOpenAdd}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-xl shadow-sm active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>Add New Dish</span>
@@ -297,12 +285,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search dishes by name or ingredients..."
-              className="w-full bg-slate-900 border border-white/[0.1] rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
+              className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -315,10 +303,10 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   selectedCategory === cat
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                    : 'bg-slate-900 border border-white/[0.08] text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-amber-500 text-white font-bold shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 {cat}
@@ -331,13 +319,13 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
         {loading ? (
           <div className="text-center py-20">
             <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
-            <p className="text-xs text-slate-400 font-medium">Loading restaurant menu...</p>
+            <p className="text-xs text-slate-500 font-medium">Loading restaurant menu...</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="text-center py-20 bg-slate-900/40 rounded-3xl border border-white/[0.08] p-8 max-w-md mx-auto">
-            <Utensils className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-white">No dishes found</h3>
-            <p className="text-xs text-slate-400 mt-1">
+          <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 max-w-md mx-auto shadow-2xs">
+            <Utensils className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-900">No dishes found</h3>
+            <p className="text-xs text-slate-500 mt-1">
               {searchQuery
                 ? `No dishes matching "${searchQuery}".`
                 : 'No items in this category yet. Click Add New Dish to expand your menu.'}
@@ -348,12 +336,12 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between rounded-2xl bg-[#0F172A] border transition-all duration-200 overflow-hidden shadow-xl glass-card-hover ${
-                  item.isAvailable ? 'border-white/[0.08]' : 'border-slate-800 opacity-60 bg-slate-950/80'
+                className={`flex flex-col justify-between rounded-2xl bg-white border transition-all duration-200 overflow-hidden shadow-sm saas-card-hover ${
+                  item.isAvailable ? 'border-slate-200/90' : 'border-slate-200 opacity-60 bg-slate-50'
                 }`}
               >
                 {/* Dish Photo with Category & Dietary Badges */}
-                <div className="relative aspect-[16/10] bg-slate-950 overflow-hidden group">
+                <div className="relative aspect-[16/10] bg-slate-100 overflow-hidden group">
                   <img
                     src={item.imageUrl}
                     alt={item.name}
@@ -361,34 +349,33 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
                       !item.isAvailable ? 'grayscale' : ''
                     }`}
                     onError={(e) => {
-                      // Fallback image if broken
                       (e.target as HTMLImageElement).src =
                         'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent pointer-events-none" />
 
                   {/* Badges in photo corners */}
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
                     {/* Indian Veg/Non-Veg icon */}
                     <div
-                      className={`w-5 h-5 bg-slate-950/90 backdrop-blur-md border rounded flex items-center justify-center p-0.5 shadow-md ${
-                        item.isVeg ? 'border-emerald-500' : 'border-red-500'
+                      className={`w-5 h-5 bg-white border rounded flex items-center justify-center p-0.5 shadow-sm ${
+                        item.isVeg ? 'border-emerald-600' : 'border-red-600'
                       }`}
                       title={item.isVeg ? 'Vegetarian' : 'Non-Vegetarian'}
                     >
-                      <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-emerald-600' : 'bg-red-600'}`} />
                     </div>
 
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-900/90 backdrop-blur-md text-slate-300 border border-white/[0.1]">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-xs text-slate-800 border border-slate-200 shadow-2xs">
                       {item.category}
                     </span>
                   </div>
 
                   {/* Sold out stamp if unavailable */}
                   {!item.isAvailable && (
-                    <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
-                      <span className="px-3 py-1 rounded-xl bg-red-600/90 text-white text-xs font-black uppercase tracking-wider shadow-lg">
+                    <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
+                      <span className="px-3 py-1 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-wider shadow-md">
                         Sold Out (86'd)
                       </span>
                     </div>
@@ -399,33 +386,33 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-white text-sm leading-snug line-clamp-1">{item.name}</h3>
-                      <span className="font-mono font-black text-amber-400 text-sm whitespace-nowrap">
+                      <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-1">{item.name}</h3>
+                      <span className="font-mono font-black text-slate-900 text-sm whitespace-nowrap">
                         ₹{item.price}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                       {item.description || 'Freshly prepared signature dish from our kitchen.'}
                     </p>
                   </div>
 
                   {/* Card Controls */}
-                  <div className="mt-4 pt-3 border-t border-white/[0.08] flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                     {/* Live in-stock toggle */}
                     <button
                       onClick={() => handleToggleAvailability(item)}
                       className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
-                        item.isAvailable ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-400'
+                        item.isAvailable ? 'text-emerald-700 hover:text-emerald-800' : 'text-slate-400 hover:text-slate-600'
                       }`}
                     >
                       {item.isAvailable ? (
                         <>
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           <span>In Stock</span>
                         </>
                       ) : (
                         <>
-                          <X className="w-4 h-4 text-red-400" />
+                          <X className="w-4 h-4 text-red-600" />
                           <span>Sold Out</span>
                         </>
                       )}
@@ -434,14 +421,14 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(item)}
-                        className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-slate-50 transition-colors"
                         title="Edit dish details"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteItem(item.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-50 transition-colors"
                         title="Delete dish"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -457,36 +444,36 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
       {/* Add / Edit Dish Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#0F172A] border border-white/[0.12] rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 my-8">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 my-8 text-slate-900">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Utensils className="w-4 h-4 text-amber-400" />
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-amber-600" />
                   {editingItem ? 'Edit Dish Details' : 'Add New Dish to Menu'}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Update photo, price in ₹, dietary status, and category
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 ✕
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-xs text-red-300 flex items-center gap-2">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
             {uploadNotice && (
-              <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
                 <span>{uploadNotice}</span>
               </div>
             )}
@@ -494,28 +481,28 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
             <form onSubmit={handleSaveItem} className="space-y-4">
               {/* Photo Upload Zone */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Food Photo (From your Device):
                 </label>
-                <div className="flex items-start gap-4 p-3 bg-slate-950 rounded-2xl border border-white/[0.08]">
+                <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-200">
                   {/* Image Preview Box */}
-                  <div className="w-24 h-24 rounded-xl bg-slate-900 border border-white/[0.1] overflow-hidden flex-shrink-0 flex items-center justify-center relative">
+                  <div className="w-24 h-24 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs">
                     {imagePreview ? (
                       <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
-                      <ImageIcon className="w-8 h-8 text-slate-600" />
+                      <ImageIcon className="w-8 h-8 text-slate-300" />
                     )}
                     {isUploadingImage && (
-                      <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center">
-                        <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                        <RefreshCw className="w-5 h-5 text-amber-600 animate-spin" />
                       </div>
                     )}
                   </div>
 
                   {/* Upload Controls */}
                   <div className="flex-1 space-y-2">
-                    <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl cursor-pointer border border-white/[0.1] transition-colors">
-                      <UploadCloud className="w-4 h-4 text-amber-400" />
+                    <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl cursor-pointer border border-slate-200 transition-colors shadow-2xs">
+                      <UploadCloud className="w-4 h-4 text-amber-600" />
                       <span>Choose Photo from Device</span>
                       <input
                         type="file"
@@ -524,11 +511,11 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
                         className="hidden"
                       />
                     </label>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-500">
                       Supports JPG, PNG, WebP up to 5MB. Optimizes automatically for high-res mobile displays.
                     </p>
                     {isUploadingImage && (
-                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                         <div
                           className="bg-amber-500 h-full transition-all duration-300"
                           style={{ width: `${uploadProgress}%` }}
@@ -541,37 +528,37 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
               {/* Dish Name */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Dish Name *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Dish Name *</label>
                 <input
                   type="text"
                   required
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g. Paneer Butter Masala"
-                  className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               {/* Price & Category */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Price (₹ INR) *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Price (₹ INR) *</label>
                   <input
                     type="number"
                     required
                     min="1"
                     value={formPrice}
                     onChange={(e) => setFormPrice(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Category</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
                   >
                     <option value="Starters">Starters</option>
                     <option value="Main Course">Main Course</option>
@@ -585,26 +572,26 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
 
               {formCategory === 'Custom' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Custom Category Name</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Custom Category Name</label>
                   <input
                     type="text"
                     required
                     value={formCustomCategory}
                     onChange={(e) => setFormCustomCategory(e.target.value)}
                     placeholder="e.g. Sizzlers or Biryani Specials"
-                    className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/60"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Description / Notes</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Description / Notes</label>
                 <textarea
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Ingredients, preparation style, spice level..."
-                  className="w-full bg-slate-900 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60 resize-none h-18"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 resize-none h-18"
                 />
               </div>
 
@@ -613,34 +600,34 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
                 {/* Veg switch */}
                 <div
                   onClick={() => setFormIsVeg(!formIsVeg)}
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-white/[0.08] cursor-pointer hover:border-white/[0.16] transition-all"
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-all"
                 >
                   <div className="flex items-center gap-2">
                     <div
                       className={`w-4 h-4 border flex items-center justify-center p-0.5 rounded-sm ${
-                        formIsVeg ? 'border-emerald-500' : 'border-red-500'
+                        formIsVeg ? 'border-emerald-600' : 'border-red-600'
                       }`}
                     >
-                      <div className={`w-2 h-2 rounded-full ${formIsVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <div className={`w-2 h-2 rounded-full ${formIsVeg ? 'bg-emerald-600' : 'bg-red-600'}`} />
                     </div>
-                    <span className="text-xs font-bold text-white">
+                    <span className="text-xs font-bold text-slate-800">
                       {formIsVeg ? 'Vegetarian' : 'Non-Veg'}
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-semibold">Toggle</span>
+                  <span className="text-[10px] text-slate-500 font-semibold">Toggle</span>
                 </div>
 
                 {/* In Stock switch */}
                 <div
                   onClick={() => setFormIsAvailable(!formIsAvailable)}
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-white/[0.08] cursor-pointer hover:border-white/[0.16] transition-all"
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-all"
                 >
-                  <span className="text-xs font-bold text-white">
+                  <span className="text-xs font-bold text-slate-800">
                     {formIsAvailable ? 'In Stock' : 'Sold Out'}
                   </span>
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      formIsAvailable ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                      formIsAvailable ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
                     }`}
                   >
                     {formIsAvailable ? 'Active' : '86\'d'}
@@ -649,18 +636,18 @@ export const MenuPage: React.FC<MenuPageProps> = ({ restaurant }) => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving || isUploadingImage}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
                 >
                   {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   <span>{editingItem ? 'Update Dish' : 'Save Dish to Menu'}</span>
