@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated restaurant owner user account profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 120 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "restaurantId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "restaurantId"]
+    },
+    "restaurant": {
+      "title": "Restaurant",
+      "description": "Restaurant profile details owned by an authenticated restaurant manager",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "address": { "type": "string", "maxLength": 200 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "currencySymbol": { "type": "string", "maxLength": 5 },
+        "taxRate": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "name", "currency", "currencySymbol"]
+    },
+    "menuItem": {
+      "title": "MenuItem",
+      "description": "A food or beverage item in the restaurant menu",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "restaurantId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "price": { "type": "number" },
+        "category": { "type": "string", "maxLength": 50 },
+        "isVeg": { "type": "boolean" },
+        "isAvailable": { "type": "boolean" },
+        "imageUrl": { "type": "string", "maxLength": 600000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "name", "price", "category", "isVeg", "isAvailable"]
+    },
+    "restaurantTable": {
+      "title": "RestaurantTable",
+      "description": "A dining table inside the restaurant with a unique table identifier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "restaurantId": { "type": "string", "maxLength": 128 },
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "tableName": { "type": "string", "maxLength": 60 },
+        "capacity": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "tableNumber", "tableName", "isActive"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Customer order dispatched to kitchen with real-time status transitions and cancellation auditing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "restaurantId": { "type": "string", "maxLength": 128 },
+        "tableId": { "type": "string", "maxLength": 128 },
+        "tableNumber": { "type": "string", "maxLength": 20 },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "tax": { "type": "number" },
+        "total": { "type": "number" },
+        "specialInstructions": { "type": "string", "maxLength": 500 },
+        "status": {
+          "type": "string",
+          "enum": ["new", "preparing", "ready", "served", "cancelled"]
+        },
+        "customerTrackingToken": { "type": "string", "maxLength": 128 },
+        "cancellationReason": { "type": "string", "maxLength": 300 },
+        "cancelledAt": { "type": "string" },
+        "cancelledBy": { "type": "string", "maxLength": 128 },
+        "editHistory": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "tableId", "tableNumber", "items", "subtotal", "tax", "total", "status", "customerTrackingToken"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profile document for authenticated restaurant owners"
+    },
+    "/restaurants/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Restaurant profile created and owned by restaurant manager"
+    },
+    "/restaurants/{restaurantId}/menu_items/{itemId}": {
+      "schema": "menuItem",
+      "description": "Menu items for the specific restaurant"
+    },
+    "/restaurants/{restaurantId}/tables/{tableId}": {
+      "schema": "restaurantTable",
+      "description": "Tables for QR code generation and customer seat assignment"
+    },
+    "/restaurants/{restaurantId}/orders/{orderId}": {
+      "schema": "order",
+      "description": "Real-time kitchen order tickets with status updates and cancellation auditing"
+    }
+  }
+}

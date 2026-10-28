@@ -1,0 +1,8 @@
+{
+  "name": "SmartServe - Restaurant Ordering Platform",
+  "description": "Scan. Order. Serve. Connected restaurant management, customer contactless ordering, and real-time kitchen order dashboard with voice alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

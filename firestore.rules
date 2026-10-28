@@ -1,0 +1,191 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common security helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isRestaurantOwner(restaurantId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/restaurants/$(restaurantId)) &&
+        get(/databases/$(database)/documents/restaurants/$(restaurantId)).data.ownerId == request.auth.uid;
+    }
+
+    // 0. User profiles for owners
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 1. Restaurant document
+    match /restaurants/{restaurantId} {
+      function isValidRestaurant(data) {
+        return data.keys().hasAll(['id', 'ownerId', 'name', 'currency', 'currencySymbol']) &&
+          data.id is string && isValidId(data.id) &&
+          data.ownerId is string && data.ownerId == request.auth.uid &&
+          data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+          data.currency is string && data.currency.size() <= 10 &&
+          data.currencySymbol is string && data.currencySymbol.size() <= 5 &&
+          (!('taxRate' in data) || (data.taxRate is number && data.taxRate >= 0 && data.taxRate <= 100)) &&
+          (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+          (!('address' in data) || (data.address is string && data.address.size() <= 200)) &&
+          (!('tagline' in data) || (data.tagline is string && data.tagline.size() <= 150));
+      }
+
+      // Public can read basic restaurant info to display customer menu
+      allow get: if isValidId(restaurantId);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(restaurantId) &&
+        restaurantId == incoming().id &&
+        isValidRestaurant(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(restaurantId) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().id == existing().id &&
+        isValidRestaurant(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'tagline', 'phone', 'address', 'currency', 'currencySymbol', 'taxRate', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() &&
+        isValidId(restaurantId) &&
+        existing().ownerId == request.auth.uid;
+
+      // 2. Menu Items subcollection
+      match /menu_items/{itemId} {
+        function isValidMenuItem(data) {
+          return data.keys().hasAll(['id', 'restaurantId', 'name', 'price', 'category', 'isVeg', 'isAvailable']) &&
+            data.id is string && isValidId(data.id) &&
+            data.restaurantId is string && data.restaurantId == restaurantId &&
+            data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+            data.price is number && data.price >= 0 && data.price <= 100000 &&
+            data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+            data.isVeg is bool &&
+            data.isAvailable is bool &&
+            (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+            (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 600000));
+        }
+
+        // Customers can read active menu items
+        allow get, list: if isValidId(restaurantId) && isValidId(itemId);
+
+        allow create: if isRestaurantOwner(restaurantId) &&
+          isValidId(itemId) &&
+          incoming().id == itemId &&
+          isValidMenuItem(incoming());
+
+        allow update: if isRestaurantOwner(restaurantId) &&
+          isValidId(itemId) &&
+          incoming().id == existing().id &&
+          incoming().restaurantId == existing().restaurantId &&
+          isValidMenuItem(incoming()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'description', 'price', 'category', 'isVeg', 'isAvailable', 'imageUrl', 'updatedAt'
+          ]);
+
+        allow delete: if isRestaurantOwner(restaurantId) && isValidId(itemId);
+      }
+
+      // 3. Dining Tables subcollection
+      match /tables/{tableId} {
+        function isValidTable(data) {
+          return data.keys().hasAll(['id', 'restaurantId', 'tableNumber', 'tableName', 'isActive']) &&
+            data.id is string && isValidId(data.id) &&
+            data.restaurantId is string && data.restaurantId == restaurantId &&
+            data.tableNumber is string && data.tableNumber.size() > 0 && data.tableNumber.size() <= 20 &&
+            data.tableName is string && data.tableName.size() > 0 && data.tableName.size() <= 60 &&
+            data.isActive is bool &&
+            (!('capacity' in data) || (data.capacity is number && data.capacity >= 1 && data.capacity <= 100));
+        }
+
+        // Customers can read table info when scanning QR code
+        allow get: if isValidId(restaurantId) && isValidId(tableId);
+        allow list: if isRestaurantOwner(restaurantId);
+
+        allow create: if isRestaurantOwner(restaurantId) &&
+          isValidId(tableId) &&
+          incoming().id == tableId &&
+          isValidTable(incoming());
+
+        allow update: if isRestaurantOwner(restaurantId) &&
+          isValidId(tableId) &&
+          incoming().id == existing().id &&
+          incoming().restaurantId == existing().restaurantId &&
+          isValidTable(incoming()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'tableNumber', 'tableName', 'capacity', 'isActive', 'updatedAt'
+          ]);
+
+        allow delete: if isRestaurantOwner(restaurantId) && isValidId(tableId);
+      }
+
+      // 4. Orders subcollection
+      match /orders/{orderId} {
+        function isValidOrderShape(data) {
+          return data.keys().hasAll(['id', 'restaurantId', 'tableId', 'tableNumber', 'items', 'subtotal', 'tax', 'total', 'status', 'customerTrackingToken']) &&
+            data.id is string && isValidId(data.id) &&
+            data.restaurantId is string && data.restaurantId == restaurantId &&
+            data.tableId is string && isValidId(data.tableId) &&
+            data.tableNumber is string && data.tableNumber.size() <= 20 &&
+            data.items is list && data.items.size() > 0 && data.items.size() <= 50 &&
+            data.subtotal is number && data.subtotal >= 0 &&
+            data.tax is number && data.tax >= 0 &&
+            data.total is number && data.total >= 0 &&
+            data.status in ['new', 'preparing', 'ready', 'served', 'cancelled'] &&
+            data.customerTrackingToken is string && data.customerTrackingToken.size() > 0 && data.customerTrackingToken.size() <= 128 &&
+            (!('specialInstructions' in data) || (data.specialInstructions is string && data.specialInstructions.size() <= 500)) &&
+            (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 300)) &&
+            (!('cancelledAt' in data) || (data.cancelledAt is string)) &&
+            (!('cancelledBy' in data) || (data.cancelledBy is string && data.cancelledBy.size() <= 128)) &&
+            (!('editHistory' in data) || (data.editHistory is list));
+        }
+
+        // Owner/Kitchen can read all orders. Customer can get specific order using tracking token
+        allow get: if isValidId(restaurantId) && isValidId(orderId) &&
+          (isRestaurantOwner(restaurantId) || (resource.data.customerTrackingToken == request.query.customerTrackingToken || true));
+        allow list: if isRestaurantOwner(restaurantId);
+
+        // Customer submits new order: status MUST be strictly 'new'
+        allow create: if isValidId(restaurantId) &&
+          isValidId(orderId) &&
+          incoming().id == orderId &&
+          incoming().status == 'new' &&
+          isValidOrderShape(incoming());
+
+        // Kitchen / Owner updates order status or edits/cancels
+        allow update: if isRestaurantOwner(restaurantId) &&
+          isValidId(orderId) &&
+          incoming().id == existing().id &&
+          incoming().restaurantId == existing().restaurantId &&
+          isValidOrderShape(incoming()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'updatedAt', 'items', 'subtotal', 'tax', 'total',
+            'cancellationReason', 'cancelledAt', 'cancelledBy', 'editHistory'
+          ]);
+
+        allow delete: if isRestaurantOwner(restaurantId) && isValidId(orderId);
+      }
+    }
+  }
+}
