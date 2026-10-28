@@ -12,6 +12,9 @@ import {
   Info,
   ShieldCheck,
   RefreshCw,
+  ArrowUpRight,
+  Sparkles,
+  PieChart,
 } from 'lucide-react';
 import { Restaurant, Order } from '../../types';
 import { restaurantService } from '../../services/restaurantService';
@@ -20,11 +23,10 @@ interface AnalyticsPageProps {
   restaurant: Restaurant;
 }
 
-type TimeFilter = 'today' | 'this_month' | 'last_12_months' | 'last_365_days';
+type TimeFilter = 'today' | 'this_month' | 'last_365_days';
 
 // India Standard Time (IST) helper
 function getISTDate(date: Date): { year: number; month: number; day: number; dateString: string; monthString: string } {
-  // Convert to IST (UTC + 5.5 hours)
   const utc = date.getTime() + date.getTimezoneOffset() * 60000;
   const istDate = new Date(utc + 5.5 * 3600000);
   const year = istDate.getFullYear();
@@ -47,6 +49,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('this_month');
+  const [hoveredMonth, setHoveredMonth] = useState<{ label: string; sales: number; count: number } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -57,46 +60,43 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
     return () => unsub();
   }, [restaurant.id]);
 
-  // Current IST dates
   const now = new Date();
   const currentIST = getISTDate(now);
 
-  // Analytics Computations
+  // Computations strictly from real database records
   const analytics = useMemo(() => {
-    // 1. Separate valid active/fulfilled orders from cancelled orders
     const validOrders = orders.filter((o) => o.status !== 'cancelled');
     const cancelledOrders = orders.filter((o) => o.status === 'cancelled');
 
-    // 2. Gross order value vs Net Sales
     const grossValue = orders.reduce((sum, o) => sum + o.total, 0);
     const netSales = validOrders.reduce((sum, o) => sum + o.total, 0);
     const cancelledValue = cancelledOrders.reduce((sum, o) => sum + o.total, 0);
 
-    // 3. Today's sales (IST)
+    // Today's sales (IST)
     const todayOrders = validOrders.filter((o) => {
       const orderIST = getISTDate(new Date(o.createdAt));
       return orderIST.dateString === currentIST.dateString;
     });
     const todaySales = todayOrders.reduce((sum, o) => sum + o.total, 0);
 
-    // 4. This month's sales (IST)
+    // This month's sales (IST)
     const thisMonthOrders = validOrders.filter((o) => {
       const orderIST = getISTDate(new Date(o.createdAt));
       return orderIST.monthString === currentIST.monthString;
     });
     const thisMonthSales = thisMonthOrders.reduce((sum, o) => sum + o.total, 0);
 
-    // 5. Rolling last 365 days
+    // Rolling last 365 days
     const oneYearAgo = new Date(now.getTime() - 365 * 24 * 3600 * 1000);
     const last365DaysOrders = validOrders.filter((o) => new Date(o.createdAt) >= oneYearAgo);
     const last365DaysSales = last365DaysOrders.reduce((sum, o) => sum + o.total, 0);
 
-    // 6. Previous 12 Calendar Months breakdown
+    // Previous 12 Calendar Months breakdown
     const monthsBreakdown: { monthKey: string; label: string; sales: number; count: number }[] = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const istMonth = getISTDate(d);
-      const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+      const label = d.toLocaleString('en-US', { month: 'short' });
 
       const monthOrders = validOrders.filter((o) => {
         const orderIST = getISTDate(new Date(o.createdAt));
@@ -112,20 +112,24 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
       });
     }
 
-    // 7. Filtered subset for view
+    // Filtered view selection
     let filteredOrders = validOrders;
+    let label = 'This Month';
     if (timeFilter === 'today') {
       filteredOrders = todayOrders;
+      label = 'Today (IST)';
     } else if (timeFilter === 'this_month') {
       filteredOrders = thisMonthOrders;
+      label = 'This Month (IST)';
     } else if (timeFilter === 'last_365_days') {
       filteredOrders = last365DaysOrders;
+      label = 'Rolling 365 Days';
     }
 
     const filteredNetSales = filteredOrders.reduce((sum, o) => sum + o.total, 0);
     const avgOrderValue = filteredOrders.length > 0 ? filteredNetSales / filteredOrders.length : 0;
 
-    // 8. Top selling items based on actual line item quantities
+    // Top selling items
     const itemMap = new Map<string, { name: string; quantity: number; revenue: number; isVeg?: boolean }>();
     filteredOrders.forEach((o) => {
       o.items.forEach((item) => {
@@ -141,286 +145,353 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ restaurant }) => {
       });
     });
 
-    const topItems = Array.from(itemMap.values())
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 6);
+    const topSellingDishes = Array.from(itemMap.values()).sort((a, b) => b.quantity - a.quantity);
 
     return {
       grossValue,
       netSales,
       cancelledValue,
+      cancelledCount: cancelledOrders.length,
       todaySales,
       todayOrdersCount: todayOrders.length,
       thisMonthSales,
       thisMonthOrdersCount: thisMonthOrders.length,
       last365DaysSales,
       last365DaysCount: last365DaysOrders.length,
-      totalOrdersCount: orders.length,
-      validOrdersCount: validOrders.length,
-      cancelledOrdersCount: cancelledOrders.length,
       monthsBreakdown,
       filteredNetSales,
       filteredOrdersCount: filteredOrders.length,
       avgOrderValue,
-      topItems,
+      topSellingDishes,
+      currentFilterLabel: label,
     };
   }, [orders, currentIST.dateString, currentIST.monthString, timeFilter]);
 
-  // Max month sales for proportional chart
-  const maxMonthlySales = Math.max(...analytics.monthsBreakdown.map((m) => m.sales), 100);
+  // Max value for 12-month bar chart scale
+  const maxMonthSales = Math.max(...analytics.monthsBreakdown.map((m) => m.sales), 100);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-              Verified Accounting
-            </span>
-            <span className="text-xs text-slate-400">Timezone: India Standard Time (IST)</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-            <TrendingUp className="w-8 h-8 text-amber-400" />
-            Analytics & Sales Dashboard
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Figures are calculated exclusively from actual persisted order records. Cancelled orders are excluded from net sales and average order values.
-          </p>
-        </div>
-
-        {/* Timeframe filters */}
-        <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'this_month', label: 'This Month' },
-            { id: 'last_12_months', label: '12 Months' },
-            { id: 'last_365_days', label: 'Last 365 Days' },
-          ].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setTimeFilter(f.id as TimeFilter)}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                timeFilter === f.id
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-24 text-slate-500 gap-2">
-          <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
-          <span className="text-xs">Computing sales from database records...</span>
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-20 bg-slate-900/40 rounded-3xl border border-slate-800/80 p-8">
-          <BarChart3 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white">No sales data recorded yet</h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-            This restaurant has not received any table orders yet. SmartServe never invents fabricated historical sales figures. Once real orders are placed, your revenue charts will calculate live.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Top 4 KPI Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">
-                  {timeFilter === 'today' ? "Today's Net Sales" : timeFilter === 'this_month' ? "This Month's Net Sales" : 'Selected Period Net Sales'}
-                </span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-white mt-2">
-                ₹{analytics.filteredNetSales.toFixed(2)}
-              </h3>
-              <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
-                <ShieldCheck className="w-3 h-3" />
-                Excludes cancelled orders
-              </p>
-            </div>
-
-            <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Orders Fulfilled</span>
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
-                  <ShoppingBag className="w-4 h-4" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-white mt-2">
-                {analytics.filteredOrdersCount}
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-1">
-                From total of {analytics.totalOrdersCount} orders placed
-              </p>
-            </div>
-
-            <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Average Order Value</span>
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-white mt-2">
-                ₹{analytics.avgOrderValue.toFixed(2)}
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Per fulfilled dining table</p>
-            </div>
-
-            <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Cancelled Orders</span>
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center">
-                  <XCircle className="w-4 h-4" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-red-400 mt-2">
-                {analytics.cancelledOrdersCount}
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Value: ₹{analytics.cancelledValue.toFixed(2)} (deducted from net)
-              </p>
-            </div>
-          </div>
-
-          {/* Monthly Sales Chart (Previous 12 Months) */}
-          <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
-              <div>
-                <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-amber-400" />
-                  Monthly Net Sales (Previous 12 Calendar Months)
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Actual realized net sales per month. Months with no order activity show ₹0.00 without fabrication.
-                </p>
-              </div>
-              <span className="text-xs font-mono font-bold text-amber-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
-                Rolling 365 Days Total: ₹{analytics.last365DaysSales.toFixed(2)}
+    <div className="min-h-screen bg-[#070A0F] text-slate-100 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+                FINANCIAL INTELLIGENCE
+              </span>
+              <span className="text-slate-500">·</span>
+              <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>IST Timezone (Asia/Kolkata · UTC+5:30)</span>
               </span>
             </div>
-
-            {/* Pure SVG & Tailwind Bar Chart */}
-            <div className="h-48 flex items-end gap-2 pt-6 pb-2 border-b border-slate-800">
-              {analytics.monthsBreakdown.map((m) => {
-                const heightPercent = maxMonthlySales > 0 ? (m.sales / maxMonthlySales) * 100 : 0;
-                const hasSales = m.sales > 0;
-
-                return (
-                  <div key={m.monthKey} className="flex-1 flex flex-col items-center h-full justify-end group">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-300 font-mono font-bold mb-1 whitespace-nowrap bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
-                      ₹{m.sales} ({m.count})
-                    </div>
-                    <div
-                      className={`w-full rounded-t-md transition-all duration-300 ${
-                        hasSales
-                          ? 'bg-gradient-to-t from-amber-600 to-amber-400 group-hover:brightness-110'
-                          : 'bg-slate-800/40 h-1'
-                      }`}
-                      style={{ height: hasSales ? `${Math.max(heightPercent, 6)}%` : '4px' }}
-                    />
-                    <span className="text-[10px] text-slate-500 mt-2 truncate w-full text-center">
-                      {m.label.split(' ')[0]}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-500 mt-3">
-              <span>Showing 12-month calendar horizon</span>
-              <span>All metrics computed from Firestore order tickets</span>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              Sales & Performance Analytics
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Metrics calculated strictly from actual database orders. Cancelled tickets are reconciled separately.
+            </p>
           </div>
 
-          {/* Best Selling Items & Detailed Audit Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Best Sellers */}
-            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl">
-              <h3 className="font-extrabold text-base text-white mb-4 flex items-center gap-2">
-                <Award className="w-5 h-5 text-amber-400" />
-                Best-Selling Dishes (By Actual Quantities)
-              </h3>
-              {analytics.topItems.length === 0 ? (
-                <p className="text-xs text-slate-500 py-6 text-center">
-                  No items sold in the selected period.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {analytics.topItems.map((item, idx) => (
+          {/* Time Filter Tabs */}
+          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
+            <button
+              onClick={() => setTimeFilter('today')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                timeFilter === 'today'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setTimeFilter('this_month')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                timeFilter === 'this_month'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => setTimeFilter('last_365_days')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                timeFilter === 'last_365_days'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Rolling 365 Days
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Primary KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {/* Card 1: Net Revenue */}
+          <div className="p-5 rounded-3xl bg-[#0F172A] border border-white/[0.08] relative overflow-hidden shadow-xl glass-card-hover">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-bl-full pointer-events-none" />
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-2 font-medium">
+              <span>Net Revenue ({analytics.currentFilterLabel})</span>
+              <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                <DollarSign className="w-4 h-4" />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-white font-mono tracking-tight">
+                ₹{Math.round(analytics.filteredNetSales).toLocaleString()}
+              </span>
+            </div>
+            <p className="text-[11px] text-emerald-400 flex items-center gap-1 mt-2 font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Realized & validated sales</span>
+            </p>
+          </div>
+
+          {/* Card 2: Orders Count */}
+          <div className="p-5 rounded-3xl bg-[#0F172A] border border-white/[0.08] relative overflow-hidden shadow-xl glass-card-hover">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-2 font-medium">
+              <span>Orders Fulfilled</span>
+              <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                <ShoppingBag className="w-4 h-4" />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-white font-mono tracking-tight">
+                {analytics.filteredOrdersCount}
+              </span>
+              <span className="text-xs text-slate-400 font-semibold">tickets</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              In selected period ({analytics.currentFilterLabel})
+            </p>
+          </div>
+
+          {/* Card 3: Average Order Value */}
+          <div className="p-5 rounded-3xl bg-[#0F172A] border border-white/[0.08] relative overflow-hidden shadow-xl glass-card-hover">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-2 font-medium">
+              <span>Average Ticket (AOV)</span>
+              <span className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                <TrendingUp className="w-4 h-4" />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-white font-mono tracking-tight">
+                ₹{Math.round(analytics.avgOrderValue).toLocaleString()}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              Net revenue / completed tickets
+            </p>
+          </div>
+
+          {/* Card 4: Cancelled Orders Reconciliation */}
+          <div className="p-5 rounded-3xl bg-[#0F172A] border border-white/[0.08] relative overflow-hidden shadow-xl glass-card-hover">
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-2 font-medium">
+              <span>Cancelled / Voided</span>
+              <span className="p-2 rounded-xl bg-red-500/10 text-red-400">
+                <XCircle className="w-4 h-4" />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-red-400 font-mono tracking-tight">
+                ₹{Math.round(analytics.cancelledValue).toLocaleString()}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              {analytics.cancelledCount} ticket{analytics.cancelledCount === 1 ? '' : 's'} excluded from net sales
+            </p>
+          </div>
+        </div>
+
+        {/* 12-Month Calendar Bar Chart & Rolling 365 Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chart Column (2 cols) */}
+          <div className="lg:col-span-2 p-6 rounded-3xl bg-[#0F172A] border border-white/[0.08] shadow-2xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-amber-400" />
+                    12 Calendar Months Revenue Trend
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Net monthly sales grouped in Indian Standard Time (IST)
+                  </p>
+                </div>
+                {hoveredMonth && (
+                  <div className="text-right">
+                    <span className="text-xs font-mono font-bold text-amber-400">
+                      {hoveredMonth.label}: ₹{hoveredMonth.sales.toLocaleString()}
+                    </span>
+                    <p className="text-[10px] text-slate-400">{hoveredMonth.count} orders</p>
+                  </div>
+                )}
+              </div>
+
+              {/* SVG Responsive Bar Chart */}
+              <div className="h-64 w-full flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-white/[0.08]">
+                {analytics.monthsBreakdown.map((m, idx) => {
+                  const heightPercent = maxMonthSales > 0 ? Math.max((m.sales / maxMonthSales) * 100, 4) : 4;
+                  const isCurrentMonth = idx === 11;
+                  return (
                     <div
-                      key={item.name}
-                      className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl flex items-center justify-between text-xs"
+                      key={m.monthKey}
+                      onMouseEnter={() => setHoveredMonth(m)}
+                      onMouseLeave={() => setHoveredMonth(null)}
+                      className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer relative"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-black text-xs flex items-center justify-center">
-                          #{idx + 1}
-                        </span>
-                        <div>
-                          <p className="font-bold text-white text-sm">{item.name}</p>
-                          <span className="text-[11px] text-slate-400">
-                            {item.quantity} orders fulfilled
-                          </span>
+                      {/* Bar */}
+                      <div
+                        style={{ height: `${heightPercent}%` }}
+                        className={`w-full max-w-[28px] rounded-t-lg transition-all duration-300 relative ${
+                          isCurrentMonth
+                            ? 'bg-gradient-to-t from-orange-600 via-amber-500 to-amber-400 group-hover:from-orange-500 group-hover:to-amber-300 shadow-md shadow-amber-500/20'
+                            : m.sales > 0
+                            ? 'bg-slate-700 hover:bg-slate-500'
+                            : 'bg-slate-800/40 hover:bg-slate-700'
+                        }`}
+                      >
+                        {/* Tooltip bubble on hover */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded shadow-lg border border-white/[0.1] whitespace-nowrap pointer-events-none z-10">
+                          ₹{m.sales}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <span className="font-bold text-amber-400 font-mono text-sm">
-                          ₹{item.revenue.toFixed(2)}
-                        </span>
-                        <p className="text-[10px] text-slate-500">Revenue</p>
-                      </div>
+                      {/* Month Label */}
+                      <span className="text-[10px] text-slate-400 mt-2 font-medium group-hover:text-amber-400 transition-colors">
+                        {m.label}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Reconciliation and Integrity Audit Box */}
-            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                Revenue Reconciliation & Integrity
-              </h3>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
-                  <span className="text-slate-400">Gross Ticket Value (all orders created)</span>
-                  <span className="font-mono font-bold text-white">₹{analytics.grossValue.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
-                  <span className="text-red-400 flex items-center gap-1">
-                    <XCircle className="w-3.5 h-3.5" />
-                    Less Cancelled Orders ({analytics.cancelledOrdersCount})
-                  </span>
-                  <span className="font-mono font-bold text-red-400">-₹{analytics.cancelledValue.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between p-2.5 bg-emerald-950/40 rounded-xl border border-emerald-500/30 text-emerald-300 font-bold">
-                  <span>Net Realized Sales (Fulfilled)</span>
-                  <span className="font-mono text-sm">₹{analytics.netSales.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
-                <p className="text-white font-bold flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-amber-400" />
-                  Compliance Note
-                </p>
-                <p>
-                  Cancelled tickets are retained for operational audit trails but are permanently excluded from realized income, average order sizes, and sales tax summaries.
-                </p>
-              </div>
+            {/* Reconciliation Audit Footnote */}
+            <div className="mt-4 pt-3 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-amber-500" />
+                <span>Current IST Month</span>
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Gross Orders Value: ₹{Math.round(analytics.grossValue).toLocaleString()} · Net Sales: ₹{Math.round(analytics.netSales).toLocaleString()}
+              </span>
             </div>
           </div>
-        </>
-      )}
+
+          {/* Rolling 365 Days Summary Card (1 col) */}
+          <div className="p-6 rounded-3xl bg-[#0F172A] border border-white/[0.08] shadow-2xl flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-2 text-amber-400 mb-1">
+                <Calendar className="w-4 h-4" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">365-Day Performance</h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Rolling 1-year total from {new Date(now.getTime() - 365 * 24 * 3600 * 1000).toLocaleDateString()} to today
+              </p>
+
+              <div className="mt-4 p-4 rounded-2xl bg-slate-950/70 border border-white/[0.06] space-y-3">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Rolling Net Sales</p>
+                  <p className="text-2xl font-black text-white font-mono">
+                    ₹{Math.round(analytics.last365DaysSales).toLocaleString()}
+                  </p>
+                </div>
+                <div className="h-px bg-white/[0.06]" />
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400">Orders Processed:</span>
+                  <span className="font-bold text-white">{analytics.last365DaysCount}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400">Audited Cancellations:</span>
+                  <span className="font-bold text-red-400">{analytics.cancelledCount} tickets</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-300">
+              <strong className="block font-bold mb-0.5 text-amber-400">Database Integrity</strong>
+              SmartServe calculates totals exclusively from verified Firestore documents. No dummy numbers or artificial inflation.
+            </div>
+          </div>
+        </div>
+
+        {/* Top Selling Dishes Ranking */}
+        <div className="p-6 rounded-3xl bg-[#0F172A] border border-white/[0.08] shadow-2xl">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Award className="w-4 h-4 text-amber-400" />
+                Top Selling Dishes Ranking
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Ranked by actual quantity sold during {analytics.currentFilterLabel}
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-slate-400">
+              {analytics.topSellingDishes.length} menu items recorded
+            </span>
+          </div>
+
+          {analytics.topSellingDishes.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 text-xs">
+              No dish sales recorded yet in this time range. Orders placed through table QR codes will appear here automatically.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {analytics.topSellingDishes.slice(0, 6).map((item, idx) => (
+                <div
+                  key={item.name}
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-900 border border-white/[0.06] hover:border-amber-500/40 transition-all shadow-md"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
+                        idx === 0
+                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
+                          : idx === 1
+                          ? 'bg-slate-300 text-slate-950'
+                          : idx === 2
+                          ? 'bg-amber-700 text-amber-100'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      #{idx + 1}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className={`w-3.5 h-3.5 border flex items-center justify-center p-0.5 rounded-sm ${
+                            item.isVeg ? 'border-emerald-500' : 'border-red-500'
+                          }`}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        </div>
+                        <p className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-[180px]">
+                          {item.name}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {item.quantity} portions sold
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-xs font-black text-amber-400 font-mono">
+                      ₹{Math.round(item.revenue).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-slate-500">gross sales</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

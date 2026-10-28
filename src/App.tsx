@@ -5,6 +5,7 @@ import { OrdersPage } from './components/owner/OrdersPage';
 import { AnalyticsPage } from './components/owner/AnalyticsPage';
 import { MenuPage } from './components/owner/MenuPage';
 import { TableQrPage } from './components/owner/TableQrPage';
+import { KitchenView } from './components/kitchen/KitchenView';
 import { CustomerView } from './components/customer/CustomerView';
 import { auth, onAuthStateChanged, fbSignOut, User } from './firebase/config';
 import { restaurantService } from './services/restaurantService';
@@ -201,6 +202,10 @@ export default function App() {
 
         {restaurant && activePage === 'menu' && (
           <MenuPage restaurant={restaurant} />
+        )}
+
+        {restaurant && activePage === 'kitchen' && (
+          <KitchenView restaurantId={restaurant.id} />
         )}
 
         {restaurant && activePage === 'tables' && (
